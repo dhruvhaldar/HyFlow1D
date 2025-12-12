@@ -85,4 +85,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 3.  **Interface**: Fluxes are exchanged by treating the neighbor's state as a boundary condition. Reconstruction is performed to pass high-order information to the FV cells and vice-versa.
 
 ---
-*Developed for research on Next-Generation Aerodynamic Simulation.*
