@@ -4,6 +4,7 @@
 #include <cmath>
 #include <memory>
 #include <string>
+#include <cstring>
 
 #include "fv_solver.hpp"
 #include "dg_solver.hpp"
@@ -29,7 +30,43 @@ void write_solution(const std::string& filename, const std::vector<std::pair<dou
     outfile.close();
 }
 
-int main() {
+void show_usage(const char* prog_name) {
+    std::cout << "Usage: " << prog_name << " [OPTIONS]\n"
+              << "Options:\n"
+              << "  -h, --help      Show this help message\n"
+              << "  -v, --verbose   Show detailed step output (disables progress bar)\n"
+              << "\n"
+              << "Description:\n"
+              << "  Runs a Hybrid FV-DG Simulation for 1D Advection.\n";
+}
+
+void draw_progress_bar(int step, int total_steps) {
+    float progress = (float)step / total_steps;
+    if (progress > 1.0f) progress = 1.0f;
+    int barWidth = 50;
+
+    std::cout << "\r[";
+    int pos = barWidth * progress;
+    for (int i = 0; i < barWidth; ++i) {
+        if (i < pos) std::cout << "=";
+        else if (i == pos) std::cout << ">";
+        else std::cout << " ";
+    }
+    std::cout << "] " << int(progress * 100.0) << " %";
+    std::cout.flush();
+}
+
+int main(int argc, char* argv[]) {
+    bool verbose = false;
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            show_usage(argv[0]);
+            return 0;
+        } else if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--verbose") == 0) {
+            verbose = true;
+        }
+    }
+
     std::cout << "Starting Hybrid FV-DG Simulation..." << std::endl;
 
     // Simulation Parameters
@@ -68,18 +105,30 @@ int main() {
     int step = 0;
     int output_interval = 100;
     
-    std::cout << "dt = " << dt << ", Total Steps = " << int(t_final/dt) << std::endl;
+    int total_steps = int(t_final/dt);
+    std::cout << "dt = " << dt << ", Total Steps = " << total_steps << std::endl;
 
     while (t < t_final) {
         if (step % output_interval == 0) {
             std::string fname = "solution_" + std::to_string(step) + ".csv";
             write_solution(fname, hybrid.get_solution());
-            std::cout << "Step " << step << ", t = " << t << std::endl;
+            if (verbose) {
+                std::cout << "Step " << step << ", t = " << t << std::endl;
+            }
+        }
+
+        if (!verbose) {
+            draw_progress_bar(step, total_steps);
         }
 
         hybrid.step(dt, advection_speed);
         t += dt;
         step++;
+    }
+
+    if (!verbose) {
+        draw_progress_bar(total_steps, total_steps);
+        std::cout << std::endl;
     }
 
     // Final output
