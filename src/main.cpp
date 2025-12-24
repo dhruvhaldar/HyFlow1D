@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <cstring>
+#include <filesystem>
 
 #include "fv_solver.hpp"
 #include "dg_solver.hpp"
@@ -69,6 +70,18 @@ int main(int argc, char* argv[]) {
 
     std::cout << "Starting Hybrid FV-DG Simulation..." << std::endl;
 
+    // Create output directory
+    namespace fs = std::filesystem;
+    std::string output_dir = "output";
+    try {
+        if (!fs::exists(output_dir)) {
+            fs::create_directory(output_dir);
+        }
+    } catch (const fs::filesystem_error& e) {
+        std::cerr << "Error creating output directory: " << e.what() << std::endl;
+        return 1;
+    }
+
     // Simulation Parameters
     double x_start = 0.0;
     double x_interface = 0.5; // Interface at 0.5
@@ -110,7 +123,7 @@ int main(int argc, char* argv[]) {
 
     while (t < t_final) {
         if (step % output_interval == 0) {
-            std::string fname = "solution_" + std::to_string(step) + ".csv";
+            std::string fname = output_dir + "/solution_" + std::to_string(step) + ".csv";
             write_solution(fname, hybrid.get_solution());
             if (verbose) {
                 std::cout << "Step " << step << ", t = " << t << std::endl;
@@ -132,8 +145,8 @@ int main(int argc, char* argv[]) {
     }
 
     // Final output
-    write_solution("solution_final.csv", hybrid.get_solution());
-    std::cout << "Simulation Complete." << std::endl;
+    write_solution(output_dir + "/solution_final.csv", hybrid.get_solution());
+    std::cout << "Simulation Complete. Results saved in " << output_dir << "/" << std::endl;
 
     return 0;
 }
