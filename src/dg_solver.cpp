@@ -1,8 +1,13 @@
 #include "dg_solver.hpp"
 #include <iostream>
 
+#include <stdexcept>
+
 DiscontinuousGalerkinSolver::DiscontinuousGalerkinSolver(int p_order) 
     : poly_order(p_order), n_modes(p_order + 1) {
+    if (p_order < 0) {
+        throw std::invalid_argument("Polynomial order must be non-negative.");
+    }
     // Get quadrature for accurate integration of mass matrix and stiffness
     // We need to integrate basis*basis, which is order 2P. 
     // Gauss-Legendre with N points integrates 2N-1 exactly.
@@ -13,6 +18,13 @@ DiscontinuousGalerkinSolver::DiscontinuousGalerkinSolver(int p_order)
 }
 
 void DiscontinuousGalerkinSolver::initialize(double start, double end, int n_elem) {
+    if (n_elem <= 0) {
+        throw std::invalid_argument("Number of elements must be positive.");
+    }
+    if (start >= end) {
+        throw std::invalid_argument("Domain start must be less than end.");
+    }
+
     x_start = start;
     x_end = end;
     n_elements = n_elem;
@@ -65,7 +77,7 @@ double DiscontinuousGalerkinSolver::evaluate_element(int element_idx, double xi)
     return val;
 }
 
-void DiscontinuousGalerkinSolver::compute_rhs(double t, double a) {
+void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
     // DG Formulation:
     // (dx/2) * (2/(2k+1)) * du_k/dt = Volume_Integral - Surface_Terms
     // Volume_Integral = Integral(a * u * dP_k/dx) dx = a * Integral(u * dP_k/dxi * 2/dx) * dx/2 dxi
