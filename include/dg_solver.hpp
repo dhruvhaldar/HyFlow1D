@@ -16,6 +16,11 @@ private:
     std::vector<std::vector<double>> u;
     std::vector<std::vector<double>> rhs;
 
+    // Precomputed basis values at quadrature points
+    // basis_at_quad[mode][quad_point]
+    std::vector<std::vector<double>> basis_at_quad;
+    std::vector<std::vector<double>> d_basis_at_quad;
+
     // Quadrature rules for integration
     std::vector<double> quad_nodes;
     std::vector<double> quad_weights;

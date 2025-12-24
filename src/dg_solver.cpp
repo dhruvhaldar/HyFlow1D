@@ -10,6 +10,17 @@ DiscontinuousGalerkinSolver::DiscontinuousGalerkinSolver(int p_order)
     auto qw = numerics::gauss_legendre(n_modes + 1); 
     quad_nodes = qw.first;
     quad_weights = qw.second;
+
+    // Precompute basis and derivatives at quadrature points
+    basis_at_quad.resize(n_modes, std::vector<double>(quad_nodes.size()));
+    d_basis_at_quad.resize(n_modes, std::vector<double>(quad_nodes.size()));
+
+    for (int k = 0; k < n_modes; ++k) {
+        for (size_t q = 0; q < quad_nodes.size(); ++q) {
+            basis_at_quad[k][q] = numerics::legendre(k, quad_nodes[q]);
+            d_basis_at_quad[k][q] = numerics::legendre_derivative(k, quad_nodes[q]);
+        }
+    }
 }
 
 void DiscontinuousGalerkinSolver::initialize(double start, double end, int n_elem) {
@@ -84,17 +95,22 @@ void DiscontinuousGalerkinSolver::compute_rhs(double t, double a) {
         double flux_surf_left = a * u_left_boundary_val;
         double flux_surf_right = a * u_right_boundary_val; 
         
+        // Precompute u at quadrature points for this element
+        std::vector<double> u_at_quad(quad_nodes.size(), 0.0);
+        for (size_t q = 0; q < quad_nodes.size(); ++q) {
+            for (int m = 0; m < n_modes; ++m) {
+                u_at_quad[q] += u[i][m] * basis_at_quad[m][q];
+            }
+        }
+
         for (int k = 0; k < n_modes; ++k) {
             // Volume integral
             double volume_int = 0.0;
             for (size_t q = 0; q < quad_nodes.size(); ++q) {
-                double xi = quad_nodes[q];
                 double w = quad_weights[q];
                 
-                double u_val = evaluate_element(i, xi);
-                double dPk = numerics::legendre_derivative(k, xi);
-                
-                volume_int += w * u_val * dPk;
+                // Use precomputed u_at_quad and precomputed derivative
+                volume_int += w * u_at_quad[q] * d_basis_at_quad[k][q];
             }
             volume_int *= a;
             
