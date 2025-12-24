@@ -4,8 +4,17 @@ import glob
 import os
 
 def plot_all():
-    files = sorted(glob.glob("solution_*.csv"), key=lambda f: int(''.join(filter(str.isdigit, f)) or 999999))
+    # Check if output dir exists, else use current
+    search_path = "output/solution_*.csv"
+    if not glob.glob(search_path):
+        search_path = "solution_*.csv"
+
+    files = sorted(glob.glob(search_path), key=lambda f: int(''.join(filter(str.isdigit, f)) or 999999))
     
+    if not files:
+        print("No solution files found.")
+        return
+
     # Plot initial, middle, and final
     # Limit to a few frames
     if len(files) > 5:

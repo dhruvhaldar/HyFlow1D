@@ -1,0 +1,40 @@
+Start testing: Dec 24 16:11 UTC
+----------------------------------------------------------
+1/2 Testing: numerics_test
+1/2 Test: numerics_test
+Command: "/app/build/test_numerics"
+Directory: /app/build
+"numerics_test" start time: Dec 24 16:11 UTC
+Output:
+----------------------------------------------------------
+Running Numerics Tests...
+All Numerics Tests Passed!
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"numerics_test" end time: Dec 24 16:11 UTC
+"numerics_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/2 Testing: solvers_test
+2/2 Test: solvers_test
+Command: "/app/build/test_solvers"
+Directory: /app/build
+"solvers_test" start time: Dec 24 16:11 UTC
+Output:
+----------------------------------------------------------
+Running Solver Tests...
+FV Initialized correctly.
+DG Initialized correctly.
+DG Peak value check passed: 1.00239
+All Solver Tests Passed!
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"solvers_test" end time: Dec 24 16:11 UTC
+"solvers_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Dec 24 16:11 UTC
