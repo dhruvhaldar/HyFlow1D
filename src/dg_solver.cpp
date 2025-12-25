@@ -8,6 +8,17 @@ DiscontinuousGalerkinSolver::DiscontinuousGalerkinSolver(int p_order)
     if (p_order < 0) {
         throw std::invalid_argument("Polynomial order must be non-negative.");
     }
+
+    // Safety check: numerics::gauss_legendre supports max 5 points
+    // We need N = p_order + 2 points (p_order+1 modes, plus one extra for safety in quadrature?)
+    // Actually the code uses n_modes + 1 = p_order + 2.
+    // If p_order = 3, n_modes = 4, we request 5. Supported.
+    // If p_order = 4, n_modes = 5, we request 6. Unsupported.
+    // Max supported n_modes + 1 is 5 => Max n_modes is 4 => Max p_order is 3.
+    if (n_modes + 1 > 5) {
+        throw std::invalid_argument("Polynomial order too high. Max supported order is 3 (5 quadrature points).");
+    }
+
     // Get quadrature for accurate integration of mass matrix and stiffness
     // We need to integrate basis*basis, which is order 2P. 
     // Gauss-Legendre with N points integrates 2N-1 exactly.
