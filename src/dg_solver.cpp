@@ -15,6 +15,17 @@ DiscontinuousGalerkinSolver::DiscontinuousGalerkinSolver(int p_order)
     auto qw = numerics::gauss_legendre(n_modes + 1); 
     quad_nodes = qw.first;
     quad_weights = qw.second;
+
+    // Precompute basis
+    basis_at_quad.resize(quad_nodes.size(), std::vector<double>(n_modes));
+    d_basis_at_quad.resize(quad_nodes.size(), std::vector<double>(n_modes));
+
+    for(size_t q=0; q<quad_nodes.size(); ++q) {
+        for(int k=0; k<n_modes; ++k) {
+             basis_at_quad[q][k] = numerics::legendre(k, quad_nodes[q]);
+             d_basis_at_quad[q][k] = numerics::legendre_derivative(k, quad_nodes[q]);
+        }
+    }
 }
 
 void DiscontinuousGalerkinSolver::initialize(double start, double end, int n_elem) {
@@ -48,11 +59,10 @@ void DiscontinuousGalerkinSolver::set_initial_condition(double (*func)(double)) 
         for (int k = 0; k < n_modes; ++k) {
             double integral = 0.0;
             for (size_t q = 0; q < quad_nodes.size(); ++q) {
-                double xi = quad_nodes[q];
                 double w = quad_weights[q];
-                double x_phys = x_center + xi * dx / 2.0;
+                double x_phys = x_center + quad_nodes[q] * dx / 2.0;
                 
-                integral += w * func(x_phys) * numerics::legendre(k, xi);
+                integral += w * func(x_phys) * basis_at_quad[q][k];
             }
             // Mass matrix diagonal term is 2/(2k+1) * (dx/2)
             // But we are working in standard element [-1, 1], so factor is just (2k+1)/2
@@ -96,15 +106,22 @@ void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
         double flux_surf_left = a * u_left_boundary_val;
         double flux_surf_right = a * u_right_boundary_val; 
         
+        // Precompute u values at quad nodes for this element
+        std::vector<double> u_at_quad(quad_nodes.size(), 0.0);
+        for (size_t q = 0; q < quad_nodes.size(); ++q) {
+             for (int k = 0; k < n_modes; ++k) {
+                 u_at_quad[q] += u[i][k] * basis_at_quad[q][k];
+             }
+        }
+
         for (int k = 0; k < n_modes; ++k) {
             // Volume integral
             double volume_int = 0.0;
             for (size_t q = 0; q < quad_nodes.size(); ++q) {
-                double xi = quad_nodes[q];
                 double w = quad_weights[q];
                 
-                double u_val = evaluate_element(i, xi);
-                double dPk = numerics::legendre_derivative(k, xi);
+                double u_val = u_at_quad[q];
+                double dPk = d_basis_at_quad[q][k];
                 
                 volume_int += w * u_val * dPk;
             }

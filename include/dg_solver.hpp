@@ -20,6 +20,11 @@ private:
     std::vector<double> quad_nodes;
     std::vector<double> quad_weights;
 
+    // Precomputed basis values at quadrature points
+    // [quad_idx][mode_idx]
+    std::vector<std::vector<double>> basis_at_quad;
+    std::vector<std::vector<double>> d_basis_at_quad;
+
     // Ghost values for numerical flux
     double left_ghost;
     double right_ghost;
