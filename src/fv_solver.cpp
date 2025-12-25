@@ -1,6 +1,14 @@
 #include "fv_solver.hpp"
+#include <stdexcept>
 
 void FiniteVolumeSolver::initialize(double start, double end, int n_elem) {
+    if (n_elem <= 0) {
+        throw std::invalid_argument("Number of elements must be positive.");
+    }
+    if (start >= end) {
+        throw std::invalid_argument("Domain start must be less than end.");
+    }
+
     x_start = start;
     x_end = end;
     n_elements = n_elem;
@@ -19,7 +27,7 @@ void FiniteVolumeSolver::set_initial_condition(double (*func)(double)) {
     }
 }
 
-void FiniteVolumeSolver::compute_rhs(double t, double a) {
+void FiniteVolumeSolver::compute_rhs(double /*t*/, double a) {
     // 1st Order Upwind Scheme: u_i^{n+1} = u_i^n - a * dt/dx * (u_i - u_{i-1})
     // RHS = -a * (u_i - u_{i-1}) / dx
     
