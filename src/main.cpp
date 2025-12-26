@@ -10,6 +10,7 @@
 #include "fv_solver.hpp"
 #include "dg_solver.hpp"
 #include "hybrid_coupling.hpp"
+#include "term_colors.hpp"
 
 // Initial Condition: Gaussian Pulse
 double initial_condition(double x) {
@@ -46,14 +47,14 @@ void draw_progress_bar(int step, int total_steps) {
     if (progress > 1.0f) progress = 1.0f;
     int barWidth = 50;
 
-    std::cout << "\r[";
+    std::cout << "\r" << Color::Blue << "[";
     int pos = barWidth * progress;
     for (int i = 0; i < barWidth; ++i) {
         if (i < pos) std::cout << "=";
         else if (i == pos) std::cout << ">";
         else std::cout << " ";
     }
-    std::cout << "] " << int(progress * 100.0) << " %";
+    std::cout << "] " << Color::Reset << Color::Bold << int(progress * 100.0) << " %" << Color::Reset;
     std::cout.flush();
 }
 
@@ -69,7 +70,7 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        std::cout << "Starting Hybrid FV-DG Simulation..." << std::endl;
+        std::cout << Color::BoldCyan << "Starting Hybrid FV-DG Simulation..." << Color::Reset << std::endl;
 
         // Create output directory
         namespace fs = std::filesystem;
@@ -115,7 +116,7 @@ int main(int argc, char* argv[]) {
         int output_interval = 100;
 
         int total_steps = int(t_final/dt);
-        std::cout << "dt = " << dt << ", Total Steps = " << total_steps << std::endl;
+        std::cout << Color::Yellow << "dt = " << dt << ", Total Steps = " << total_steps << Color::Reset << std::endl;
 
         while (t < t_final) {
             if (step % output_interval == 0) {
@@ -142,13 +143,13 @@ int main(int argc, char* argv[]) {
 
         // Final output
         write_solution(output_dir + "/solution_final.csv", hybrid.get_solution());
-        std::cout << "Simulation Complete. Results saved in " << output_dir << "/" << std::endl;
+        std::cout << Color::BoldGreen << "Simulation Complete. Results saved in " << output_dir << "/" << Color::Reset << std::endl;
 
     } catch (const std::exception& e) {
-        std::cerr << "\nFATAL ERROR: " << e.what() << std::endl;
+        std::cerr << Color::BoldRed << "\nFATAL ERROR: " << e.what() << Color::Reset << std::endl;
         return 1;
     } catch (...) {
-        std::cerr << "\nFATAL ERROR: Unknown exception occurred." << std::endl;
+        std::cerr << Color::BoldRed << "\nFATAL ERROR: Unknown exception occurred." << Color::Reset << std::endl;
         return 1;
     }
 
