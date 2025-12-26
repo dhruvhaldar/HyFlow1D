@@ -49,7 +49,7 @@ After building, run the executable from the `build` directory:
 
 The simulation propagates a Gaussian pulse through the domain. The domain $[0, 0.5]$ uses Finite Volume, and $[0.5, 1.0]$ uses Discontinuous Galerkin.
 
-Output files (`solution_*.csv`) will be generated in the current directory.
+Output files (`solution_*.csv`) will be generated in the `output/` directory.
 
 ### Visualizing Results
 To see the wave move through the hybrid interface:

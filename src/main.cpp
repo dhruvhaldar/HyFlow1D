@@ -10,6 +10,7 @@
 #include "fv_solver.hpp"
 #include "dg_solver.hpp"
 #include "hybrid_coupling.hpp"
+#include "term_colors.hpp"
 
 // Initial Condition: Gaussian Pulse
 double initial_condition(double x) {
@@ -21,7 +22,7 @@ double initial_condition(double x) {
 void write_solution(const std::string& filename, const std::vector<std::pair<double, double>>& solution) {
     std::ofstream outfile(filename);
     if (!outfile.is_open()) {
-        std::cerr << "Error opening file: " << filename << std::endl;
+        std::cerr << Color::RED << "Error opening file: " << filename << Color::RESET << std::endl;
         return;
     }
     outfile << "x,u\n";
@@ -46,14 +47,14 @@ void draw_progress_bar(int step, int total_steps) {
     if (progress > 1.0f) progress = 1.0f;
     int barWidth = 50;
 
-    std::cout << "\r[";
+    std::cout << "\r" << Color::CYAN << "[";
     int pos = barWidth * progress;
     for (int i = 0; i < barWidth; ++i) {
         if (i < pos) std::cout << "=";
         else if (i == pos) std::cout << ">";
         else std::cout << " ";
     }
-    std::cout << "] " << int(progress * 100.0) << " %";
+    std::cout << "] " << int(progress * 100.0) << " %" << Color::RESET;
     std::cout.flush();
 }
 
@@ -68,7 +69,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    std::cout << "Starting Hybrid FV-DG Simulation..." << std::endl;
+    std::cout << Color::BOLD << Color::BLUE << "Starting Hybrid FV-DG Simulation..." << Color::RESET << std::endl;
 
     // Create output directory
     namespace fs = std::filesystem;
@@ -78,7 +79,7 @@ int main(int argc, char* argv[]) {
             fs::create_directory(output_dir);
         }
     } catch (const fs::filesystem_error& e) {
-        std::cerr << "Error creating output directory: " << e.what() << std::endl;
+        std::cerr << Color::RED << "Error creating output directory: " << e.what() << Color::RESET << std::endl;
         return 1;
     }
 
@@ -119,7 +120,7 @@ int main(int argc, char* argv[]) {
     int output_interval = 100;
     
     int total_steps = int(t_final/dt);
-    std::cout << "dt = " << dt << ", Total Steps = " << total_steps << std::endl;
+    std::cout << Color::YELLOW << "dt = " << dt << ", Total Steps = " << total_steps << Color::RESET << std::endl;
 
     while (t < t_final) {
         if (step % output_interval == 0) {
@@ -146,7 +147,7 @@ int main(int argc, char* argv[]) {
 
     // Final output
     write_solution(output_dir + "/solution_final.csv", hybrid.get_solution());
-    std::cout << "Simulation Complete. Results saved in " << output_dir << "/" << std::endl;
+    std::cout << Color::GREEN << "Simulation Complete. Results saved in " << output_dir << "/" << Color::RESET << std::endl;
 
     return 0;
 }

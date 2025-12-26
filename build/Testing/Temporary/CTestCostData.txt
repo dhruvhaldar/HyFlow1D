@@ -1,3 +1,0 @@
-numerics_test 2 0.00179999
-solvers_test 2 0.00179189
----
