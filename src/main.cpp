@@ -36,6 +36,7 @@ void show_usage(const char* prog_name) {
               << "Options:\n"
               << "  -h, --help      Show this help message\n"
               << "  -v, --verbose   Show detailed step output (disables progress bar)\n"
+              << "  -o, --output    Specify output directory (default: output)\n"
               << "\n"
               << "Description:\n"
               << "  Runs a Hybrid FV-DG Simulation for 1D Advection.\n";
@@ -60,12 +61,21 @@ void draw_progress_bar(int step, int total_steps) {
 int main(int argc, char* argv[]) {
     try {
         bool verbose = false;
+        std::string output_dir = "output";
+
         for (int i = 1; i < argc; ++i) {
             if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
                 show_usage(argv[0]);
                 return 0;
             } else if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--verbose") == 0) {
                 verbose = true;
+            } else if (strcmp(argv[i], "-o") == 0 || strcmp(argv[i], "--output") == 0) {
+                if (i + 1 < argc) {
+                    output_dir = argv[++i];
+                } else {
+                    std::cerr << "Error: Output directory not specified after " << argv[i] << std::endl;
+                    return 1;
+                }
             }
         }
 
@@ -73,7 +83,12 @@ int main(int argc, char* argv[]) {
 
         // Create output directory
         namespace fs = std::filesystem;
-        std::string output_dir = "output";
+
+        // Security Check: Verify output_dir is not a file
+        if (fs::exists(output_dir) && !fs::is_directory(output_dir)) {
+            throw std::runtime_error("Output path '" + output_dir + "' exists and is not a directory.");
+        }
+
         if (!fs::exists(output_dir)) {
             fs::create_directory(output_dir);
         }
