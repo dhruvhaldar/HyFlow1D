@@ -15,6 +15,7 @@ int main() {
     // Test Legendre P_2(x) = 0.5 * (3x^2 - 1)
     double p2_05 = 0.5 * (3 * 0.5 * 0.5 - 1);
     assert(std::abs(numerics::legendre(2, 0.5) - p2_05) < 1e-9);
+    (void)p2_05; // Suppress unused variable warning in Release builds with NDEBUG
 
     // Test Quadrature Integration of f(x) = x^2 over [-1, 1] -> Result should be 2/3
     // Use N=2 (exact for polynomials up to degree 2*2-1 = 3)
