@@ -37,6 +37,9 @@ DiscontinuousGalerkinSolver::DiscontinuousGalerkinSolver(int p_order)
              d_basis_at_quad[q][k] = numerics::legendre_derivative(k, quad_nodes[q]);
         }
     }
+
+    // Initialize scratch space
+    u_at_quad_scratch.resize(quad_nodes.size());
 }
 
 void DiscontinuousGalerkinSolver::initialize(double start, double end, int n_elem) {
@@ -92,8 +95,18 @@ void DiscontinuousGalerkinSolver::set_initial_condition(double (*func)(double)) 
 
 double DiscontinuousGalerkinSolver::evaluate_element(int element_idx, double xi) const {
     double val = 0.0;
-    for (int k = 0; k < n_modes; ++k) {
-        val += u[element_idx][k] * numerics::legendre(k, xi);
+    if (xi == 1.0) {
+        for (int k = 0; k < n_modes; ++k) {
+            val += u[element_idx][k]; // P_k(1) = 1
+        }
+    } else if (xi == -1.0) {
+        for (int k = 0; k < n_modes; ++k) {
+            val += u[element_idx][k] * ((k % 2 == 0) ? 1.0 : -1.0); // P_k(-1) = (-1)^k
+        }
+    } else {
+        for (int k = 0; k < n_modes; ++k) {
+            val += u[element_idx][k] * numerics::legendre(k, xi);
+        }
     }
     return val;
 }
@@ -118,10 +131,10 @@ void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
         double flux_surf_right = a * u_right_boundary_val; 
         
         // Precompute u values at quad nodes for this element
-        std::vector<double> u_at_quad(quad_nodes.size(), 0.0);
+        std::fill(u_at_quad_scratch.begin(), u_at_quad_scratch.end(), 0.0);
         for (size_t q = 0; q < quad_nodes.size(); ++q) {
              for (int k = 0; k < n_modes; ++k) {
-                 u_at_quad[q] += u[i][k] * basis_at_quad[q][k];
+                 u_at_quad_scratch[q] += u[i][k] * basis_at_quad[q][k];
              }
         }
 
@@ -131,7 +144,7 @@ void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
             for (size_t q = 0; q < quad_nodes.size(); ++q) {
                 double w = quad_weights[q];
                 
-                double u_val = u_at_quad[q];
+                double u_val = u_at_quad_scratch[q];
                 double dPk = d_basis_at_quad[q][k];
                 
                 volume_int += w * u_val * dPk;

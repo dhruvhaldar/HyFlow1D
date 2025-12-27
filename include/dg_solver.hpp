@@ -29,6 +29,9 @@ private:
     double left_ghost;
     double right_ghost;
 
+    // Scratch space to avoid repeated allocations
+    std::vector<double> u_at_quad_scratch;
+
 public:
     DiscontinuousGalerkinSolver(int p_order);
 
