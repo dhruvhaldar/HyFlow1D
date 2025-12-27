@@ -6,6 +6,8 @@
 #include <string>
 #include <cstring>
 #include <filesystem>
+#include <chrono>
+#include <iomanip>
 
 #include "fv_solver.hpp"
 #include "dg_solver.hpp"
@@ -43,19 +45,37 @@ void show_usage(const char* prog_name) {
               << "  Runs a Hybrid FV-DG Simulation for 1D Advection.\n";
 }
 
-void draw_progress_bar(int step, int total_steps) {
+void draw_progress_bar(int step, int total_steps, double elapsed_seconds) {
     float progress = (float)step / total_steps;
     if (progress > 1.0f) progress = 1.0f;
     int barWidth = 50;
 
+    // Spinner animation
+    const char spinner[] = {'|', '/', '-', '\\'};
+    char spin_char = (progress >= 1.0f) ? ' ' : spinner[step % 4];
+
     std::cout << "\r" << Color::Blue << "[";
     int pos = barWidth * progress;
     for (int i = 0; i < barWidth; ++i) {
-        if (i < pos) std::cout << "=";
-        else if (i == pos) std::cout << ">";
+        if (i < pos) std::cout << "█";
+        else if (i == pos) std::cout << "█";
         else std::cout << " ";
     }
-    std::cout << "] " << Color::Reset << Color::Bold << int(progress * 100.0) << " %" << Color::Reset;
+    std::cout << "] " << Color::Reset << Color::Bold << int(progress * 100.0) << " % " << Color::Reset;
+
+    // Spinner & ETA
+    if (progress < 1.0f) {
+        std::cout << spin_char << " ";
+        if (progress > 0.0f) {
+            double total_estimated = elapsed_seconds / progress;
+            double remaining = total_estimated - elapsed_seconds;
+            int r_min = (int)remaining / 60;
+            int r_sec = (int)remaining % 60;
+            std::cout << "ETA: " << std::setfill('0') << std::setw(2) << r_min << ":"
+                      << std::setw(2) << r_sec;
+        }
+    }
+
     std::cout.flush();
 }
 
@@ -133,6 +153,8 @@ int main(int argc, char* argv[]) {
         int total_steps = int(t_final/dt);
         std::cout << Color::Yellow << "dt = " << dt << ", Total Steps = " << total_steps << Color::Reset << std::endl;
 
+        auto start_time = std::chrono::steady_clock::now();
+
         while (t < t_final) {
             if (step % output_interval == 0) {
                 std::string fname = output_dir + "/solution_" + std::to_string(step) + ".csv";
@@ -143,7 +165,9 @@ int main(int argc, char* argv[]) {
             }
 
             if (!verbose) {
-                draw_progress_bar(step, total_steps);
+                auto now = std::chrono::steady_clock::now();
+                std::chrono::duration<double> elapsed = now - start_time;
+                draw_progress_bar(step, total_steps, elapsed.count());
             }
 
             hybrid.step(dt, advection_speed);
@@ -152,7 +176,9 @@ int main(int argc, char* argv[]) {
         }
 
         if (!verbose) {
-            draw_progress_bar(total_steps, total_steps);
+            auto now = std::chrono::steady_clock::now();
+            std::chrono::duration<double> elapsed = now - start_time;
+            draw_progress_bar(total_steps, total_steps, elapsed.count());
             std::cout << std::endl;
         }
 
