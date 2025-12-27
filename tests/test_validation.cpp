@@ -16,5 +16,7 @@ int main() {
     assert(check_fail([&]{ dg.initialize(0, 1, 0); }));
     assert(check_fail([&]{ DiscontinuousGalerkinSolver bad_dg(-1); }));
 
+    (void)check_fail; // Suppress unused variable warning in Release builds with NDEBUG
+
     return 0;
 }
