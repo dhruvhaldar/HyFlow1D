@@ -31,10 +31,18 @@ DiscontinuousGalerkinSolver::DiscontinuousGalerkinSolver(int p_order)
     basis_at_quad.resize(quad_nodes.size(), std::vector<double>(n_modes));
     d_basis_at_quad.resize(quad_nodes.size(), std::vector<double>(n_modes));
 
+    // Resize transposed weighted basis: [n_modes][quad_nodes]
+    weighted_d_basis_transposed.resize(n_modes, std::vector<double>(quad_nodes.size()));
+
     for(size_t q=0; q<quad_nodes.size(); ++q) {
         for(int k=0; k<n_modes; ++k) {
              basis_at_quad[q][k] = numerics::legendre(k, quad_nodes[q]);
-             d_basis_at_quad[q][k] = numerics::legendre_derivative(k, quad_nodes[q]);
+             double dPk = numerics::legendre_derivative(k, quad_nodes[q]);
+             d_basis_at_quad[q][k] = dPk;
+
+             // Precompute w * dPk for optimized volume integral
+             // Store in transposed layout [k][q] for contiguous access in inner q-loop
+             weighted_d_basis_transposed[k][q] = quad_weights[q] * dPk;
         }
     }
 
@@ -141,13 +149,13 @@ void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
         for (int k = 0; k < n_modes; ++k) {
             // Volume integral
             double volume_int = 0.0;
+
+            // Optimization: Use precomputed weighted derivative basis in transposed layout
+            // Access weighted_d_basis_transposed[k][q] is contiguous in q
+            const auto& w_d_basis_row = weighted_d_basis_transposed[k];
+
             for (size_t q = 0; q < quad_nodes.size(); ++q) {
-                double w = quad_weights[q];
-                
-                double u_val = u_at_quad_scratch[q];
-                double dPk = d_basis_at_quad[q][k];
-                
-                volume_int += w * u_val * dPk;
+                volume_int += u_at_quad_scratch[q] * w_d_basis_row[q];
             }
             volume_int *= a;
             

@@ -25,6 +25,10 @@ private:
     std::vector<std::vector<double>> basis_at_quad;
     std::vector<std::vector<double>> d_basis_at_quad;
 
+    // Transposed and weighted derivative basis for optimized volume integral
+    // [mode_idx][quad_idx]
+    std::vector<std::vector<double>> weighted_d_basis_transposed;
+
     // Ghost values for numerical flux
     double left_ghost;
     double right_ghost;
