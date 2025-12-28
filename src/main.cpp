@@ -48,12 +48,14 @@ void draw_progress_bar(int step, int total_steps) {
     if (progress > 1.0f) progress = 1.0f;
     int barWidth = 50;
 
-    std::cout << "\r" << Color::Blue << "[";
+    const char* spinner = "|/-\\";
+    int spinner_idx = std::abs(step) % 4;
+
+    std::cout << "\r" << Color::Blue << spinner[spinner_idx] << " [";
     int pos = barWidth * progress;
     for (int i = 0; i < barWidth; ++i) {
-        if (i < pos) std::cout << "=";
-        else if (i == pos) std::cout << ">";
-        else std::cout << " ";
+        if (i < pos) std::cout << "█";
+        else std::cout << "░";
     }
     std::cout << "] " << Color::Reset << Color::Bold << int(progress * 100.0) << " %" << Color::Reset;
     std::cout.flush();
