@@ -35,17 +35,17 @@ void write_solution(const std::string& filename, const std::vector<std::pair<dou
 }
 
 void show_usage(const char* prog_name) {
-    std::cout << "Usage: " << prog_name << " [OPTIONS]\n"
+    std::cout << "Usage: " << Color::Bold << prog_name << " [OPTIONS]" << Color::Reset << "\n"
               << "Options:\n"
-              << "  -h, --help      Show this help message\n"
-              << "  -v, --verbose   Show detailed step output (disables progress bar)\n"
-              << "  -o, --output    Specify output directory (default: output)\n"
+              << "  " << Color::Yellow << "-h, --help" << Color::Reset << "      Show this help message\n"
+              << "  " << Color::Yellow << "-v, --verbose" << Color::Reset << "   Show detailed step output (disables progress bar)\n"
+              << "  " << Color::Yellow << "-o, --output" << Color::Reset << "    Specify output directory (default: output)\n"
               << "\n"
               << "Description:\n"
               << "  Runs a Hybrid FV-DG Simulation for 1D Advection.\n";
 }
 
-void draw_progress_bar(int step, int total_steps, double elapsed_seconds) {
+void draw_progress_bar(int step, int total_steps, double elapsed_seconds, double t_current, double t_final) {
     float progress = (float)step / total_steps;
     if (progress > 1.0f) progress = 1.0f;
     int barWidth = 50;
@@ -62,6 +62,9 @@ void draw_progress_bar(int step, int total_steps, double elapsed_seconds) {
         else std::cout << " ";
     }
     std::cout << "] " << Color::Reset << Color::Bold << int(progress * 100.0) << " % " << Color::Reset;
+
+    // Simulation time info
+    std::cout << Color::Cyan << " (t=" << std::fixed << std::setprecision(2) << t_current << "/" << t_final << ")" << Color::Reset << " ";
 
     // Spinner & ETA
     if (progress < 1.0f) {
@@ -167,7 +170,7 @@ int main(int argc, char* argv[]) {
             if (!verbose) {
                 auto now = std::chrono::steady_clock::now();
                 std::chrono::duration<double> elapsed = now - start_time;
-                draw_progress_bar(step, total_steps, elapsed.count());
+                draw_progress_bar(step, total_steps, elapsed.count(), t, t_final);
             }
 
             hybrid.step(dt, advection_speed);
@@ -178,7 +181,7 @@ int main(int argc, char* argv[]) {
         if (!verbose) {
             auto now = std::chrono::steady_clock::now();
             std::chrono::duration<double> elapsed = now - start_time;
-            draw_progress_bar(total_steps, total_steps, elapsed.count());
+            draw_progress_bar(total_steps, total_steps, elapsed.count(), t_final, t_final);
             std::cout << std::endl;
         }
 
