@@ -1,6 +1,6 @@
 #include "dg_solver.hpp"
 #include <iostream>
-
+#include <cassert>
 #include <stdexcept>
 
 DiscontinuousGalerkinSolver::DiscontinuousGalerkinSolver(int p_order) 
@@ -122,9 +122,12 @@ void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
     // Assume a > 0 (Upwind flux)
     // Flux at boundary is a * u_upwind.
     
+    double prev_boundary_val = left_ghost;
+
     for (int i = 0; i < n_elements; ++i) {
-        double u_left_boundary_val = (i == 0) ? left_ghost : evaluate_element(i-1, 1.0);
+        double u_left_boundary_val = prev_boundary_val;
         double u_right_boundary_val = evaluate_element(i, 1.0); // Inside value
+        prev_boundary_val = u_right_boundary_val;
         
         // Upwind fluxes
         double flux_surf_left = a * u_left_boundary_val;
@@ -138,18 +141,25 @@ void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
              }
         }
 
-        for (int k = 0; k < n_modes; ++k) {
-            // Volume integral
-            double volume_int = 0.0;
-            for (size_t q = 0; q < quad_nodes.size(); ++q) {
-                double w = quad_weights[q];
-                
-                double u_val = u_at_quad_scratch[q];
-                double dPk = d_basis_at_quad[q][k];
-                
-                volume_int += w * u_val * dPk;
+        // Compute volume integrals for all modes
+        // Loop order swapped for cache locality: q (outer) -> k (inner)
+        // This accesses d_basis_at_quad[q][k] sequentially in memory.
+
+        // Use a small fixed-size array on stack to avoid heap allocation.
+        // Max supported n_modes is 4 (p_order 3), but we use 8 for safety margin.
+        assert(n_modes <= 8 && "n_modes exceeds stack buffer size");
+        double volume_ints[8] = {0.0};
+
+        for (size_t q = 0; q < quad_nodes.size(); ++q) {
+            double factor = quad_weights[q] * u_at_quad_scratch[q] * a;
+            const auto& d_basis_q = d_basis_at_quad[q];
+            for (int k = 0; k < n_modes; ++k) {
+                 volume_ints[k] += factor * d_basis_q[k];
             }
-            volume_int *= a;
+        }
+
+        for (int k = 0; k < n_modes; ++k) {
+            double volume_int = volume_ints[k];
             
             // Surface terms
             // P_k(1) = 1, P_k(-1) = (-1)^k
