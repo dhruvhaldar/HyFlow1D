@@ -23,7 +23,12 @@ private:
     // Precomputed basis values at quadrature points
     // [quad_idx][mode_idx]
     std::vector<std::vector<double>> basis_at_quad;
-    std::vector<std::vector<double>> d_basis_at_quad;
+
+    // OPTIMIZATION: Transposed and weight-premultiplied derivative basis
+    // Layout: [mode_idx][quad_idx]
+    // Value: quad_weights[q] * dP_k(xi_q)
+    // This allows contiguous memory access in the volume integral loop
+    std::vector<std::vector<double>> weighted_d_basis_transposed;
 
     // Ghost values for numerical flux
     double left_ghost;
