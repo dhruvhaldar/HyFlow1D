@@ -112,6 +112,8 @@ int main(int argc, char* argv[]) {
 
         if (!fs::exists(output_dir)) {
             fs::create_directory(output_dir);
+            // Security Enhancement: Set strict permissions (700) to prevent unauthorized access
+            fs::permissions(output_dir, fs::perms::owner_all, fs::perm_options::replace);
         }
 
         // Simulation Parameters

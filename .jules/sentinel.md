@@ -12,3 +12,8 @@
 **Vulnerability:** Misconfiguration of `_FORTIFY_SOURCE=2` in Debug builds caused build failures due to `-Werror`.
 **Learning:** `_FORTIFY_SOURCE` requires optimization (typically -O1 or higher) to work. Defining it in Debug builds (which usually use -O0) can cause compiler warnings (e.g., `#warning _FORTIFY_SOURCE requires compiling with optimization`). When `-Werror` is active, this breaks the build.
 **Prevention:** Use generator expressions (e.g., `$<$<CONFIG:Release>:_FORTIFY_SOURCE=2>`) to conditionally apply flags based on the build type.
+
+## 2024-12-29 - [Secure Directory Creation]
+**Vulnerability:** Default directory creation permissions (umask dependent) could allow other users to read or modify simulation results in shared environments.
+**Learning:** `std::filesystem::create_directory` does not allow specifying permissions at creation time, leading to a small window where permissions are loose.
+**Prevention:** Immediately follow directory creation with `std::filesystem::permissions(path, fs::perms::owner_all)` to lock down access.
