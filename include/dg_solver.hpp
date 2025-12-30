@@ -13,8 +13,9 @@ private:
     double x_start, x_end;
     
     // Storage: u[element_idx][mode_idx]
-    std::vector<std::vector<double>> u;
-    std::vector<std::vector<double>> rhs;
+    // Flattened for cache locality: index = element_idx * n_modes + mode_idx
+    std::vector<double> u;
+    std::vector<double> rhs;
 
     // Quadrature rules for integration
     std::vector<double> quad_nodes;
@@ -31,6 +32,10 @@ private:
 
     // Scratch space to avoid repeated allocations
     std::vector<double> u_at_quad_scratch;
+
+    // Precomputed inverse mass matrix diagonal
+    // inv_mass[k] = (2k+1) / dx
+    std::vector<double> inv_mass_matrix;
 
 public:
     DiscontinuousGalerkinSolver(int p_order);
