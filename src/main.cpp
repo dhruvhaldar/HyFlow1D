@@ -115,6 +115,8 @@ int main(int argc, char* argv[]) {
 
         if (!fs::exists(output_dir)) {
             fs::create_directory(output_dir);
+            // Sentinel Security Fix: Restrict permissions to owner only (0700) to prevent unauthorized access
+            fs::permissions(output_dir, fs::perms::owner_all, fs::perm_options::replace);
         }
 
         // Simulation Parameters
