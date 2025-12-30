@@ -7,3 +7,6 @@
 ## 2024-05-23 - [CLI Progress Bar Upgrade]
 **Learning:** Adding visual block characters and an ETA timer transforms a basic CLI tool into a professional-feeling application.
 **Action:** Always check if a long-running CLI process has an ETA indicator. If not, add one.
+## 2024-05-21 - CLI Argument Validation
+**Learning:** In command-line tools, silently ignoring unknown arguments can lead to user confusion (e.g. typos in flags).
+**Action:** Always implement a default/else case in argument parsing loops to warn or error on unrecognized flags.

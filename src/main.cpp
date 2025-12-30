@@ -88,18 +88,23 @@ int main(int argc, char* argv[]) {
         std::string output_dir = "output";
 
         for (int i = 1; i < argc; ++i) {
-            if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            std::string arg = argv[i];
+            if (arg == "-h" || arg == "--help") {
                 show_usage(argv[0]);
                 return 0;
-            } else if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--verbose") == 0) {
+            } else if (arg == "-v" || arg == "--verbose") {
                 verbose = true;
-            } else if (strcmp(argv[i], "-o") == 0 || strcmp(argv[i], "--output") == 0) {
+            } else if (arg == "-o" || arg == "--output") {
                 if (i + 1 < argc) {
                     output_dir = argv[++i];
                 } else {
-                    std::cerr << "Error: Output directory not specified after " << argv[i] << std::endl;
+                    std::cerr << Color::BoldRed << "Error: Output directory not specified after " << arg << Color::Reset << std::endl;
                     return 1;
                 }
+            } else if (arg.rfind("-", 0) == 0) {
+                 // Only warn if it looks like a flag (starts with -)
+                std::cerr << Color::Yellow << "Warning: Unknown argument '" << arg << "' ignored." << Color::Reset << std::endl;
+                std::cerr << "Use " << Color::Bold << "--help" << Color::Reset << " to see available options." << std::endl;
             }
         }
 
