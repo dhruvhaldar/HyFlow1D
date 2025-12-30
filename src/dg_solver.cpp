@@ -1,6 +1,6 @@
 #include "dg_solver.hpp"
 #include <iostream>
-
+#include <cassert>
 #include <stdexcept>
 
 DiscontinuousGalerkinSolver::DiscontinuousGalerkinSolver(int p_order) 
@@ -8,6 +8,17 @@ DiscontinuousGalerkinSolver::DiscontinuousGalerkinSolver(int p_order)
     if (p_order < 0) {
         throw std::invalid_argument("Polynomial order must be non-negative.");
     }
+
+    // Safety check: numerics::gauss_legendre supports max 5 points
+    // We need N = p_order + 2 points (p_order+1 modes, plus one extra for safety in quadrature?)
+    // Actually the code uses n_modes + 1 = p_order + 2.
+    // If p_order = 3, n_modes = 4, we request 5. Supported.
+    // If p_order = 4, n_modes = 5, we request 6. Unsupported.
+    // Max supported n_modes + 1 is 5 => Max n_modes is 4 => Max p_order is 3.
+    if (n_modes + 1 > 5) {
+        throw std::invalid_argument("Polynomial order too high. Max supported order is 3 (5 quadrature points).");
+    }
+
     // Get quadrature for accurate integration of mass matrix and stiffness
     // We need to integrate basis*basis, which is order 2P. 
     // Gauss-Legendre with N points integrates 2N-1 exactly.
@@ -15,6 +26,20 @@ DiscontinuousGalerkinSolver::DiscontinuousGalerkinSolver(int p_order)
     auto qw = numerics::gauss_legendre(n_modes + 1); 
     quad_nodes = qw.first;
     quad_weights = qw.second;
+
+    // Precompute basis
+    basis_at_quad.resize(quad_nodes.size(), std::vector<double>(n_modes));
+    d_basis_at_quad.resize(quad_nodes.size(), std::vector<double>(n_modes));
+
+    for(size_t q=0; q<quad_nodes.size(); ++q) {
+        for(int k=0; k<n_modes; ++k) {
+             basis_at_quad[q][k] = numerics::legendre(k, quad_nodes[q]);
+             d_basis_at_quad[q][k] = numerics::legendre_derivative(k, quad_nodes[q]);
+        }
+    }
+
+    // Initialize scratch space
+    u_at_quad_scratch.resize(quad_nodes.size());
 }
 
 void DiscontinuousGalerkinSolver::initialize(double start, double end, int n_elem) {
@@ -48,11 +73,10 @@ void DiscontinuousGalerkinSolver::set_initial_condition(double (*func)(double)) 
         for (int k = 0; k < n_modes; ++k) {
             double integral = 0.0;
             for (size_t q = 0; q < quad_nodes.size(); ++q) {
-                double xi = quad_nodes[q];
                 double w = quad_weights[q];
-                double x_phys = x_center + xi * dx / 2.0;
+                double x_phys = x_center + quad_nodes[q] * dx / 2.0;
                 
-                integral += w * func(x_phys) * numerics::legendre(k, xi);
+                integral += w * func(x_phys) * basis_at_quad[q][k];
             }
             // Mass matrix diagonal term is 2/(2k+1) * (dx/2)
             // But we are working in standard element [-1, 1], so factor is just (2k+1)/2
@@ -71,8 +95,18 @@ void DiscontinuousGalerkinSolver::set_initial_condition(double (*func)(double)) 
 
 double DiscontinuousGalerkinSolver::evaluate_element(int element_idx, double xi) const {
     double val = 0.0;
-    for (int k = 0; k < n_modes; ++k) {
-        val += u[element_idx][k] * numerics::legendre(k, xi);
+    if (xi == 1.0) {
+        for (int k = 0; k < n_modes; ++k) {
+            val += u[element_idx][k]; // P_k(1) = 1
+        }
+    } else if (xi == -1.0) {
+        for (int k = 0; k < n_modes; ++k) {
+            val += u[element_idx][k] * ((k % 2 == 0) ? 1.0 : -1.0); // P_k(-1) = (-1)^k
+        }
+    } else {
+        for (int k = 0; k < n_modes; ++k) {
+            val += u[element_idx][k] * numerics::legendre(k, xi);
+        }
     }
     return val;
 }
@@ -88,27 +122,44 @@ void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
     // Assume a > 0 (Upwind flux)
     // Flux at boundary is a * u_upwind.
     
+    double prev_boundary_val = left_ghost;
+
     for (int i = 0; i < n_elements; ++i) {
-        double u_left_boundary_val = (i == 0) ? left_ghost : evaluate_element(i-1, 1.0);
+        double u_left_boundary_val = prev_boundary_val;
         double u_right_boundary_val = evaluate_element(i, 1.0); // Inside value
+        prev_boundary_val = u_right_boundary_val;
         
         // Upwind fluxes
         double flux_surf_left = a * u_left_boundary_val;
         double flux_surf_right = a * u_right_boundary_val; 
         
-        for (int k = 0; k < n_modes; ++k) {
-            // Volume integral
-            double volume_int = 0.0;
-            for (size_t q = 0; q < quad_nodes.size(); ++q) {
-                double xi = quad_nodes[q];
-                double w = quad_weights[q];
-                
-                double u_val = evaluate_element(i, xi);
-                double dPk = numerics::legendre_derivative(k, xi);
-                
-                volume_int += w * u_val * dPk;
+        // Precompute u values at quad nodes for this element
+        std::fill(u_at_quad_scratch.begin(), u_at_quad_scratch.end(), 0.0);
+        for (size_t q = 0; q < quad_nodes.size(); ++q) {
+             for (int k = 0; k < n_modes; ++k) {
+                 u_at_quad_scratch[q] += u[i][k] * basis_at_quad[q][k];
+             }
+        }
+
+        // Compute volume integrals for all modes
+        // Loop order swapped for cache locality: q (outer) -> k (inner)
+        // This accesses d_basis_at_quad[q][k] sequentially in memory.
+
+        // Use a small fixed-size array on stack to avoid heap allocation.
+        // Max supported n_modes is 4 (p_order 3), but we use 8 for safety margin.
+        assert(n_modes <= 8 && "n_modes exceeds stack buffer size");
+        double volume_ints[8] = {0.0};
+
+        for (size_t q = 0; q < quad_nodes.size(); ++q) {
+            double factor = quad_weights[q] * u_at_quad_scratch[q] * a;
+            const auto& d_basis_q = d_basis_at_quad[q];
+            for (int k = 0; k < n_modes; ++k) {
+                 volume_ints[k] += factor * d_basis_q[k];
             }
-            volume_int *= a;
+        }
+
+        for (int k = 0; k < n_modes; ++k) {
+            double volume_int = volume_ints[k];
             
             // Surface terms
             // P_k(1) = 1, P_k(-1) = (-1)^k

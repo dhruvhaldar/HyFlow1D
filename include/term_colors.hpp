@@ -1,14 +1,24 @@
 #pragma once
 
-#include <string>
+#include <string_view>
 
 namespace Color {
-    const std::string RESET   = "\033[0m";
-    const std::string RED     = "\033[31m";
-    const std::string GREEN   = "\033[32m";
-    const std::string YELLOW  = "\033[33m";
-    const std::string BLUE    = "\033[34m";
-    const std::string MAGENTA = "\033[35m";
-    const std::string CYAN    = "\033[36m";
-    const std::string BOLD    = "\033[1m";
+    inline constexpr std::string_view Reset   = "\033[0m";
+    inline constexpr std::string_view Bold    = "\033[1m";
+    inline constexpr std::string_view Red     = "\033[31m";
+    inline constexpr std::string_view Green   = "\033[32m";
+    inline constexpr std::string_view Yellow  = "\033[33m";
+    inline constexpr std::string_view Blue    = "\033[34m";
+    inline constexpr std::string_view Magenta = "\033[35m";
+    inline constexpr std::string_view Cyan    = "\033[36m";
+    inline constexpr std::string_view White   = "\033[37m";
+
+    // Bold Variants
+    inline constexpr std::string_view BoldRed     = "\033[1;31m";
+    inline constexpr std::string_view BoldGreen   = "\033[1;32m";
+    inline constexpr std::string_view BoldYellow  = "\033[1;33m";
+    inline constexpr std::string_view BoldBlue    = "\033[1;34m";
+    inline constexpr std::string_view BoldMagenta = "\033[1;35m";
+    inline constexpr std::string_view BoldCyan    = "\033[1;36m";
+    inline constexpr std::string_view BoldWhite   = "\033[1;37m";
 }
