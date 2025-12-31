@@ -115,6 +115,9 @@ int main(int argc, char* argv[]) {
 
         if (!fs::exists(output_dir)) {
             fs::create_directory(output_dir);
+            // Security: Restrict output directory permissions to owner only (0700)
+            // to prevent unauthorized access to simulation results.
+            fs::permissions(output_dir, fs::perms::owner_all, fs::perm_options::replace);
         }
 
         // Simulation Parameters
