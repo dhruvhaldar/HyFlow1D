@@ -97,9 +97,13 @@ int main(int argc, char* argv[]) {
                 if (i + 1 < argc) {
                     output_dir = argv[++i];
                 } else {
-                    std::cerr << "Error: Output directory not specified after " << argv[i] << std::endl;
+                    std::cerr << Color::BoldRed << "Error: Output directory not specified after " << argv[i] << Color::Reset << std::endl;
                     return 1;
                 }
+            } else if (argv[i][0] == '-') {
+                std::cerr << Color::BoldRed << "Error: Unknown option '" << argv[i] << "'" << Color::Reset << std::endl;
+                show_usage(argv[0]);
+                return 1;
             }
         }
 
