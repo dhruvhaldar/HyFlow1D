@@ -1,0 +1,3 @@
+## 2024-05-23 - Pre-computation in DG Solver
+**Learning:** In high-order numerical methods like Discontinuous Galerkin, small per-element operations accumulate massively. Pre-multiplying quadrature weights into basis functions (`weighted_d_basis`) and pre-calculating inverse mass matrix diagonals (`inv_mass_matrix`) significantly reduces FLOPs in the hot `compute_rhs` loop without increasing memory complexity significantly.
+**Action:** Always look for constant terms inside hot loops (integrals, geometric factors) that can be pre-calculated during initialization, especially if they are element-independent or only depend on the mesh geometry.
