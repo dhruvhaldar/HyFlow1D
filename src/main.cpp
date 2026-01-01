@@ -100,6 +100,10 @@ int main(int argc, char* argv[]) {
                     std::cerr << "Error: Output directory not specified after " << argv[i] << std::endl;
                     return 1;
                 }
+            } else if (argv[i][0] == '-') {
+                std::cerr << "Error: Unknown argument '" << argv[i] << "'" << std::endl;
+                show_usage(argv[0]);
+                return 1;
             }
         }
 
@@ -115,6 +119,9 @@ int main(int argc, char* argv[]) {
 
         if (!fs::exists(output_dir)) {
             fs::create_directory(output_dir);
+            // Security: Set permissions to 0700 (owner read/write/execute only)
+            // This prevents other users from reading potential sensitive research data in shared environments.
+            fs::permissions(output_dir, fs::perms::owner_all, fs::perm_options::replace);
         }
 
         // Simulation Parameters
