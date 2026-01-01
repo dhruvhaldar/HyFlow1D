@@ -25,6 +25,12 @@ private:
     std::vector<std::vector<double>> basis_at_quad;
     std::vector<std::vector<double>> d_basis_at_quad;
 
+    // Optimization: Pre-weighted derivative basis to save multiplications in hot loop
+    std::vector<std::vector<double>> weighted_d_basis_at_quad;
+
+    // Optimization: Precomputed inverse mass matrix diagonal
+    std::vector<double> inv_mass_matrix;
+
     // Ghost values for numerical flux
     double left_ghost;
     double right_ghost;
