@@ -100,6 +100,18 @@ int main(int argc, char* argv[]) {
                     std::cerr << "Error: Output directory not specified after " << argv[i] << std::endl;
                     return 1;
                 }
+            } else {
+                // Check if it looks like a flag
+                if (argv[i][0] == '-') {
+                    std::cerr << Color::BoldRed << "Error: Unknown option '" << argv[i] << "'" << Color::Reset << std::endl;
+                    show_usage(argv[0]);
+                    return 1;
+                } else {
+                     // Could be a positional argument, but we don't support any yet.
+                    std::cerr << Color::BoldRed << "Error: Unexpected argument '" << argv[i] << "'" << Color::Reset << std::endl;
+                    show_usage(argv[0]);
+                    return 1;
+                }
             }
         }
 
