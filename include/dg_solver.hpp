@@ -32,6 +32,10 @@ private:
     // Scratch space to avoid repeated allocations
     std::vector<double> u_at_quad_scratch;
 
+    // Precomputed inverse mass matrix diagonal
+    // inv_mass_matrix[k] = (2k+1) / dx
+    std::vector<double> inv_mass_matrix;
+
 public:
     DiscontinuousGalerkinSolver(int p_order);
 

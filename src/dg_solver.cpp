@@ -57,6 +57,12 @@ void DiscontinuousGalerkinSolver::initialize(double start, double end, int n_ele
     
     u.assign(n_elements, std::vector<double>(n_modes, 0.0));
     rhs.assign(n_elements, std::vector<double>(n_modes, 0.0));
+
+    // Precompute inverse mass matrix diagonal
+    inv_mass_matrix.resize(n_modes);
+    for (int k = 0; k < n_modes; ++k) {
+        inv_mass_matrix[k] = (2.0 * k + 1.0) / dx;
+    }
     
     left_ghost = 0.0;
     right_ghost = 0.0;
@@ -170,9 +176,9 @@ void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
             
             // Invert Mass Matrix
             // M_kk = (dx/2) * (2/(2k+1)) = dx / (2k+1)
-            double inv_mass = (2.0 * k + 1.0) / dx;
+            // Used precomputed inv_mass_matrix[k] = (2k+1)/dx
             
-            rhs[i][k] = total_rhs * inv_mass;
+            rhs[i][k] = total_rhs * inv_mass_matrix[k];
         }
     }
 }
