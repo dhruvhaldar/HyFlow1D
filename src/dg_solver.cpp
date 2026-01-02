@@ -59,8 +59,9 @@ void DiscontinuousGalerkinSolver::initialize(double start, double end, int n_ele
     n_elements = n_elem;
     dx = (x_end - x_start) / n_elements;
     
-    u.assign(n_elements, std::vector<double>(n_modes, 0.0));
-    rhs.assign(n_elements, std::vector<double>(n_modes, 0.0));
+    // Flattened storage
+    u.assign(n_elements * n_modes, 0.0);
+    rhs.assign(n_elements * n_modes, 0.0);
     
     // Precompute inverse mass matrix diagonal
     // M_kk = dx / (2k+1)
@@ -100,24 +101,25 @@ void DiscontinuousGalerkinSolver::set_initial_condition(double (*func)(double)) 
             // RHS vector entry R_k = Integral(f * P_k) dx = (dx/2) * Integral(f(xi) * P_k(xi)) dxi.
             // u_k = R_k / M_kk = Integral(f(xi) * P_k(xi)) dxi * (2k+1)/2.
             
-            u[i][k] = integral * (2.0 * k + 1.0) / 2.0;
+            u[i * n_modes + k] = integral * (2.0 * k + 1.0) / 2.0;
         }
     }
 }
 
 double DiscontinuousGalerkinSolver::evaluate_element(int element_idx, double xi) const {
     double val = 0.0;
+    int base_idx = element_idx * n_modes;
     if (xi == 1.0) {
         for (int k = 0; k < n_modes; ++k) {
-            val += u[element_idx][k]; // P_k(1) = 1
+            val += u[base_idx + k]; // P_k(1) = 1
         }
     } else if (xi == -1.0) {
         for (int k = 0; k < n_modes; ++k) {
-            val += u[element_idx][k] * ((k % 2 == 0) ? 1.0 : -1.0); // P_k(-1) = (-1)^k
+            val += u[base_idx + k] * ((k % 2 == 0) ? 1.0 : -1.0); // P_k(-1) = (-1)^k
         }
     } else {
         for (int k = 0; k < n_modes; ++k) {
-            val += u[element_idx][k] * numerics::legendre(k, xi);
+            val += u[base_idx + k] * numerics::legendre(k, xi);
         }
     }
     return val;
@@ -145,11 +147,13 @@ void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
         double flux_surf_left = a * u_left_boundary_val;
         double flux_surf_right = a * u_right_boundary_val; 
         
+        int base_idx = i * n_modes;
+
         // Precompute u values at quad nodes for this element
         std::fill(u_at_quad_scratch.begin(), u_at_quad_scratch.end(), 0.0);
         for (size_t q = 0; q < quad_nodes.size(); ++q) {
              for (int k = 0; k < n_modes; ++k) {
-                 u_at_quad_scratch[q] += u[i][k] * basis_at_quad[q][k];
+                 u_at_quad_scratch[q] += u[base_idx + k] * basis_at_quad[q][k];
              }
         }
 
@@ -182,16 +186,18 @@ void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
             double total_rhs = volume_int - (surf_right - surf_left);
             
             // Optimization: Use precomputed inverse mass matrix
-            rhs[i][k] = total_rhs * inv_mass_matrix[k];
+            rhs[base_idx + k] = total_rhs * inv_mass_matrix[k];
         }
     }
 }
 
 void DiscontinuousGalerkinSolver::update_state(double dt) {
-    for (int i = 0; i < n_elements; ++i) {
-        for (int k = 0; k < n_modes; ++k) {
-            u[i][k] += dt * rhs[i][k];
-        }
+    // Because u and rhs are now flattened vectors of the same size,
+    // we can use a single loop.
+    // This allows the compiler to vectorize efficiently.
+    size_t total_size = u.size();
+    for (size_t idx = 0; idx < total_size; ++idx) {
+        u[idx] += dt * rhs[idx];
     }
 }
 
