@@ -10,3 +10,6 @@
 ## 2024-10-24 - [CLI Argument Validation]
 **Learning:** Silent failure on unknown flags is a common CLI frustration. Catching "unknown arguments" early prevents user confusion about why their flag (e.g., typo) isn't working.
 **Action:** Always implement a strict `else` block in argument parsing loops to reject unknown flags/arguments.
+## 2024-10-24 - [CLI Configuration Summary]
+**Learning:** Displaying a configuration summary before execution (even if parameters are hardcoded) builds user trust and clarity.
+**Action:** Always print a formatted summary of simulation parameters at startup.

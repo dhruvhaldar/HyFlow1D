@@ -143,7 +143,7 @@ int main(int argc, char* argv[]) {
         // Degrees of freedom roughly: 10 * 4 = 40. Comparable resolution?
         // FV is 50 dofs. DG is 40 dofs.
         int n_dg = 10;
-    int p_order = 3; 
+        int p_order = 3;
 
         double advection_speed = 1.0;
         double cfl = 0.1; // Low CFL for stability with Forward Euler
@@ -169,7 +169,16 @@ int main(int argc, char* argv[]) {
         int output_interval = 100;
 
         int total_steps = int(t_final/dt);
-        std::cout << Color::Yellow << "dt = " << dt << ", Total Steps = " << total_steps << Color::Reset << std::endl;
+
+        // Print Configuration Summary
+        std::cout << "\n" << Color::Bold << "Simulation Configuration:" << Color::Reset << "\n"
+                  << "  " << Color::Blue << "FV Cells:    " << Color::Reset << n_fv << "\n"
+                  << "  " << Color::Blue << "DG Elements: " << Color::Reset << n_dg << " (Order P=" << p_order << ")\n"
+                  << "  " << Color::Blue << "Time:        " << Color::Reset << "0.0 -> " << t_final << "\n"
+                  << "  " << Color::Blue << "CFL:         " << Color::Reset << cfl << "\n"
+                  << "  " << Color::Yellow << "dt:          " << Color::Reset << dt << "\n"
+                  << "  " << Color::Yellow << "Total Steps: " << Color::Reset << total_steps << "\n"
+                  << std::endl;
 
         auto start_time = std::chrono::steady_clock::now();
 
