@@ -12,9 +12,9 @@ private:
     double dx;
     double x_start, x_end;
     
-    // Storage: u[element_idx][mode_idx]
-    std::vector<std::vector<double>> u;
-    std::vector<std::vector<double>> rhs;
+    // Storage: u flattened: u[element_idx * n_modes + mode_idx]
+    std::vector<double> u;
+    std::vector<double> rhs;
 
     // Quadrature rules for integration
     std::vector<double> quad_nodes;
