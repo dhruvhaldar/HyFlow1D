@@ -13,3 +13,6 @@
 ## 2024-10-24 - [CLI Configuration Summary]
 **Learning:** Displaying a configuration summary before execution (even if parameters are hardcoded) builds user trust and clarity.
 **Action:** Always print a formatted summary of simulation parameters at startup.
+## 2024-05-23 - CLI Environment Adaptation
+**Learning:** CLI tools are often used in non-interactive environments (CI pipes, log redirection). Fancy progress bars with carriage returns (\r) create massive, unreadable log files in these contexts.
+**Action:** Detect TTY availability (using isatty on POSIX) and downgrade UX automatically: disable colors and switch from animated progress bars to simple periodic log statements (e.g., every 10%). This improves "accessibility" for automated systems and log readers.
