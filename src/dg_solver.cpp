@@ -44,6 +44,7 @@ DiscontinuousGalerkinSolver::DiscontinuousGalerkinSolver(int p_order)
 
     // Initialize scratch space
     u_at_quad_scratch.resize(quad_nodes.size());
+    volume_ints_scratch.resize(n_modes);
 }
 
 void DiscontinuousGalerkinSolver::initialize(double start, double end, int n_elem) {
@@ -161,22 +162,19 @@ void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
         // Loop order swapped for cache locality: q (outer) -> k (inner)
         // This accesses d_basis_at_quad[q][k] sequentially in memory.
 
-        // Use a small fixed-size array on stack to avoid heap allocation.
-        // Max supported n_modes is 4 (p_order 3), but we use 8 for safety margin.
-        assert(n_modes <= 8 && "n_modes exceeds stack buffer size");
-        double volume_ints[8] = {0.0};
+        std::fill(volume_ints_scratch.begin(), volume_ints_scratch.end(), 0.0);
 
         for (size_t q = 0; q < quad_nodes.size(); ++q) {
             // Optimization: quad_weights[q] is already in weighted_d_basis_at_quad
             double u_val = u_at_quad_scratch[q] * a;
             const auto& w_d_basis_q = weighted_d_basis_at_quad[q];
             for (int k = 0; k < n_modes; ++k) {
-                 volume_ints[k] += u_val * w_d_basis_q[k];
+                 volume_ints_scratch[k] += u_val * w_d_basis_q[k];
             }
         }
 
         for (int k = 0; k < n_modes; ++k) {
-            double volume_int = volume_ints[k];
+            double volume_int = volume_ints_scratch[k];
             
             // Surface terms
             // P_k(1) = 1, P_k(-1) = (-1)^k
