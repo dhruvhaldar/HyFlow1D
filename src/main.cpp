@@ -1,4 +1,5 @@
 #include <iostream>
+#include <cstdio>
 #include <fstream>
 #include <vector>
 #include <cmath>
@@ -8,6 +9,15 @@
 #include <filesystem>
 #include <chrono>
 #include <iomanip>
+
+// Check for unistd.h availability for isatty
+#if defined(__unix__) || defined(__APPLE__) || defined(__linux__)
+    #include <unistd.h>
+    #define HAS_UNISTD 1
+#elif defined(_WIN32) || defined(_WIN64)
+    #include <io.h>
+    #define HAS_IO_H 1
+#endif
 
 #include "fv_solver.hpp"
 #include "dg_solver.hpp"
@@ -87,6 +97,22 @@ int main(int argc, char* argv[]) {
         bool verbose = false;
         std::string output_dir = "output";
 
+        // Detect TTY to auto-configure UX. Default to true to be safe (fail-open).
+        bool is_tty = true;
+#if defined(HAS_UNISTD)
+        if (!isatty(fileno(stdout))) {
+            is_tty = false;
+        }
+#elif defined(HAS_IO_H)
+        if (!_isatty(_fileno(stdout))) {
+            is_tty = false;
+        }
+#endif
+        // Auto-disable colors if not TTY
+        if (!is_tty) {
+            Color::enabled = false;
+        }
+
         for (int i = 1; i < argc; ++i) {
             if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
                 show_usage(argv[0]);
@@ -115,8 +141,6 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        std::cout << Color::BoldCyan << "Starting Hybrid FV-DG Simulation..." << Color::Reset << std::endl;
-
         // Create output directory
         namespace fs = std::filesystem;
 
@@ -131,6 +155,9 @@ int main(int argc, char* argv[]) {
             // to prevent unauthorized access to simulation results.
             fs::permissions(output_dir, fs::perms::owner_all, fs::perm_options::replace);
         }
+
+        // Print Start Message
+        std::cout << Color::BoldCyan << "Starting Hybrid FV-DG Simulation..." << Color::Reset << std::endl;
 
         // Simulation Parameters
         double x_start = 0.0;
@@ -191,10 +218,13 @@ int main(int argc, char* argv[]) {
                 }
             }
 
-            if (!verbose) {
+            if (!verbose && is_tty) {
                 auto now = std::chrono::steady_clock::now();
                 std::chrono::duration<double> elapsed = now - start_time;
                 draw_progress_bar(step, total_steps, elapsed.count(), t, t_final);
+            } else if (!verbose && !is_tty && step % std::max(1, total_steps / 10) == 0) {
+                 // Simple progress for non-TTY (every 10%)
+                 std::cout << "Progress: " << int((double)step/total_steps * 100) << "% (t=" << t << ")" << std::endl;
             }
 
             hybrid.step(dt, advection_speed);
@@ -202,7 +232,7 @@ int main(int argc, char* argv[]) {
             step++;
         }
 
-        if (!verbose) {
+        if (!verbose && is_tty) {
             auto now = std::chrono::steady_clock::now();
             std::chrono::duration<double> elapsed = now - start_time;
             draw_progress_bar(total_steps, total_steps, elapsed.count(), t_final, t_final);
