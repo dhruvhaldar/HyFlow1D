@@ -28,17 +28,18 @@ DiscontinuousGalerkinSolver::DiscontinuousGalerkinSolver(int p_order)
     quad_weights = qw.second;
 
     // Precompute basis
-    basis_at_quad.resize(quad_nodes.size(), std::vector<double>(n_modes));
-    d_basis_at_quad.resize(quad_nodes.size(), std::vector<double>(n_modes));
-    weighted_d_basis_at_quad.resize(quad_nodes.size(), std::vector<double>(n_modes));
+    basis_at_quad.resize(quad_nodes.size() * n_modes);
+    d_basis_at_quad.resize(quad_nodes.size() * n_modes);
+    weighted_d_basis_at_quad.resize(quad_nodes.size() * n_modes);
 
     for(size_t q=0; q<quad_nodes.size(); ++q) {
         double w = quad_weights[q];
         for(int k=0; k<n_modes; ++k) {
-             basis_at_quad[q][k] = numerics::legendre(k, quad_nodes[q]);
-             d_basis_at_quad[q][k] = numerics::legendre_derivative(k, quad_nodes[q]);
+             size_t idx = q * n_modes + k;
+             basis_at_quad[idx] = numerics::legendre(k, quad_nodes[q]);
+             d_basis_at_quad[idx] = numerics::legendre_derivative(k, quad_nodes[q]);
              // Optimization: Pre-multiply weight into derivative basis
-             weighted_d_basis_at_quad[q][k] = w * d_basis_at_quad[q][k];
+             weighted_d_basis_at_quad[idx] = w * d_basis_at_quad[idx];
         }
     }
 
@@ -90,7 +91,8 @@ void DiscontinuousGalerkinSolver::set_initial_condition(double (*func)(double)) 
                 double w = quad_weights[q];
                 double x_phys = x_center + quad_nodes[q] * dx / 2.0;
                 
-                integral += w * func(x_phys) * basis_at_quad[q][k];
+                size_t basis_idx = q * n_modes + k;
+                integral += w * func(x_phys) * basis_at_quad[basis_idx];
             }
             // Mass matrix diagonal term is 2/(2k+1) * (dx/2)
             // But we are working in standard element [-1, 1], so factor is just (2k+1)/2
@@ -153,8 +155,9 @@ void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
         // Precompute u values at quad nodes for this element
         std::fill(u_at_quad_scratch.begin(), u_at_quad_scratch.end(), 0.0);
         for (size_t q = 0; q < quad_nodes.size(); ++q) {
+             size_t basis_row_start = q * n_modes;
              for (int k = 0; k < n_modes; ++k) {
-                 u_at_quad_scratch[q] += u[base_idx + k] * basis_at_quad[q][k];
+                 u_at_quad_scratch[q] += u[base_idx + k] * basis_at_quad[basis_row_start + k];
              }
         }
 
@@ -167,9 +170,10 @@ void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
         for (size_t q = 0; q < quad_nodes.size(); ++q) {
             // Optimization: quad_weights[q] is already in weighted_d_basis_at_quad
             double u_val = u_at_quad_scratch[q] * a;
-            const auto& w_d_basis_q = weighted_d_basis_at_quad[q];
+
+            size_t basis_row_start = q * n_modes;
             for (int k = 0; k < n_modes; ++k) {
-                 volume_ints_scratch[k] += u_val * w_d_basis_q[k];
+                 volume_ints_scratch[k] += u_val * weighted_d_basis_at_quad[basis_row_start + k];
             }
         }
 
