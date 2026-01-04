@@ -246,7 +246,15 @@ int main(int argc, char* argv[]) {
 
         // Final output
         write_solution(output_dir + "/solution_final.csv", hybrid.get_solution());
-        std::cout << Color::BoldGreen << "Simulation Complete. Results saved in " << output_dir << "/" << Color::Reset << std::endl;
+
+        auto end_time = std::chrono::steady_clock::now();
+        std::chrono::duration<double> total_elapsed = end_time - start_time;
+        double steps_per_sec = (total_elapsed.count() > 0) ? (total_steps / total_elapsed.count()) : 0.0;
+
+        std::cout << Color::BoldGreen << "Simulation Complete in "
+                  << std::fixed << std::setprecision(2) << total_elapsed.count() << "s ("
+                  << std::setprecision(0) << steps_per_sec << " steps/s)." << Color::Reset << "\n"
+                  << "Results saved in " << Color::Bold << output_dir << "/" << Color::Reset << std::endl;
 
     } catch (const std::exception& e) {
         std::cerr << Color::BoldRed << "\nFATAL ERROR: " << e.what() << Color::Reset << std::endl;

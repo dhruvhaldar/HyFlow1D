@@ -16,3 +16,6 @@
 ## 2024-05-23 - CLI Environment Adaptation
 **Learning:** CLI tools are often used in non-interactive environments (CI pipes, log redirection). Fancy progress bars with carriage returns (\r) create massive, unreadable log files in these contexts.
 **Action:** Detect TTY availability (using isatty on POSIX) and downgrade UX automatically: disable colors and switch from animated progress bars to simple periodic log statements (e.g., every 10%). This improves "accessibility" for automated systems and log readers.
+## 2024-10-24 - [CLI Performance Summary]
+**Learning:** Scientific users value performance transparency. Explicitly summarizing total runtime and throughput (steps/sec) at completion provides immediate, satisfying feedback that validates the tool's efficiency.
+**Action:** Calculate and display `total_time` and `steps_per_second` in the final success message of simulation tools.
