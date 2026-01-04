@@ -21,12 +21,13 @@ private:
     std::vector<double> quad_weights;
 
     // Precomputed basis values at quadrature points
-    // [quad_idx][mode_idx]
-    std::vector<std::vector<double>> basis_at_quad;
-    std::vector<std::vector<double>> d_basis_at_quad;
+    // Flattened: [quad_idx * n_modes + mode_idx]
+    std::vector<double> basis_at_quad;
+    std::vector<double> d_basis_at_quad;
 
     // Optimization: Pre-weighted derivative basis to save multiplications in hot loop
-    std::vector<std::vector<double>> weighted_d_basis_at_quad;
+    // Flattened: [quad_idx * n_modes + mode_idx]
+    std::vector<double> weighted_d_basis_at_quad;
 
     // Optimization: Precomputed inverse mass matrix diagonal
     std::vector<double> inv_mass_matrix;
