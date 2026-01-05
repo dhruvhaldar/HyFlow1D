@@ -2,6 +2,7 @@
 #include <iostream>
 #include <cassert>
 #include <stdexcept>
+#include <limits>
 
 DiscontinuousGalerkinSolver::DiscontinuousGalerkinSolver(int p_order) 
     : poly_order(p_order), n_modes(p_order + 1) {
@@ -52,6 +53,12 @@ void DiscontinuousGalerkinSolver::initialize(double start, double end, int n_ele
     if (n_elem <= 0) {
         throw std::invalid_argument("Number of elements must be positive.");
     }
+    // Check for integer overflow in state allocation (n_elem * n_modes)
+    // If n_elem * n_modes > MAX_INT, iterating with int indices will wrap and cause OOB access.
+    if (n_elem > std::numeric_limits<int>::max() / n_modes) {
+        throw std::overflow_error("Number of elements too large, would cause integer overflow.");
+    }
+
     if (start >= end) {
         throw std::invalid_argument("Domain start must be less than end.");
     }
