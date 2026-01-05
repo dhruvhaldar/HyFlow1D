@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <chrono>
 #include <iomanip>
+#include <cstdlib>
 
 // Check for unistd.h availability for isatty
 #if defined(__unix__) || defined(__APPLE__) || defined(__linux__)
@@ -45,14 +46,19 @@ void write_solution(const std::string& filename, const std::vector<std::pair<dou
 }
 
 void show_usage(const char* prog_name) {
-    std::cout << "Usage: " << Color::Bold << prog_name << " [OPTIONS]" << Color::Reset << "\n"
-              << "Options:\n"
-              << "  " << Color::Yellow << "-h, --help" << Color::Reset << "      Show this help message\n"
-              << "  " << Color::Yellow << "-v, --verbose" << Color::Reset << "   Show detailed step output (disables progress bar)\n"
-              << "  " << Color::Yellow << "-o, --output" << Color::Reset << "    Specify output directory (default: output)\n"
-              << "\n"
-              << "Description:\n"
-              << "  Runs a Hybrid FV-DG Simulation for 1D Advection.\n";
+    std::cout << "\n" << Color::BoldCyan << "  HyFlow1D  " << Color::Reset << " - Hybrid FV-DG Advection Solver\n\n"
+              << "  " << Color::Bold << "Usage:" << Color::Reset << " " << prog_name << " [OPTIONS]\n\n"
+              << "  " << Color::Bold << "Options:" << Color::Reset << "\n"
+              << "    " << Color::Yellow << "-h, --help" << Color::Reset << "      Show this help message\n"
+              << "    " << Color::Yellow << "-v, --verbose" << Color::Reset << "   Show detailed step output (disables progress bar)\n"
+              << "    " << Color::Yellow << "-o, --output" << Color::Reset << "    Specify output directory (default: output)\n\n"
+              << "  " << Color::Bold << "Simulation Details (Hardcoded):" << Color::Reset << "\n"
+              << "    Domain: [0, 1] (FV: [0, 0.5], DG: [0.5, 1])\n"
+              << "    Config: 50 FV cells, 10 DG elements (P=3)\n"
+              << "    Physics: Linear Advection (a=1.0), Gaussian Pulse\n\n"
+              << "  " << Color::Bold << "Examples:" << Color::Reset << "\n"
+              << "    " << prog_name << "\n"
+              << "    " << prog_name << " -o my_results -v\n";
 }
 
 void draw_progress_bar(int step, int total_steps, double elapsed_seconds, double t_current, double t_final) {
@@ -110,6 +116,11 @@ int main(int argc, char* argv[]) {
 #endif
         // Auto-disable colors if not TTY
         if (!is_tty) {
+            Color::enabled = false;
+        }
+
+        // Accessibility: Respect NO_COLOR standard (https://no-color.org/)
+        if (std::getenv("NO_COLOR") != nullptr) {
             Color::enabled = false;
         }
 
