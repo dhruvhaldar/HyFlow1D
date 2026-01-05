@@ -37,7 +37,6 @@ private:
     double right_ghost;
 
     // Scratch space to avoid repeated allocations
-    std::vector<double> u_at_quad_scratch;
     std::vector<double> volume_ints_scratch;
 
 public:

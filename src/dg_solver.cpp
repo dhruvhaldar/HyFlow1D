@@ -44,7 +44,6 @@ DiscontinuousGalerkinSolver::DiscontinuousGalerkinSolver(int p_order)
     }
 
     // Initialize scratch space
-    u_at_quad_scratch.resize(quad_nodes.size());
     volume_ints_scratch.resize(n_modes);
 }
 
@@ -152,28 +151,30 @@ void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
         
         int base_idx = i * n_modes;
 
-        // Precompute u values at quad nodes for this element
-        std::fill(u_at_quad_scratch.begin(), u_at_quad_scratch.end(), 0.0);
-        for (size_t q = 0; q < quad_nodes.size(); ++q) {
-             size_t basis_row_start = q * n_modes;
-             for (int k = 0; k < n_modes; ++k) {
-                 u_at_quad_scratch[q] += u[base_idx + k] * basis_at_quad[basis_row_start + k];
-             }
-        }
-
         // Compute volume integrals for all modes
-        // Loop order swapped for cache locality: q (outer) -> k (inner)
-        // This accesses d_basis_at_quad[q][k] sequentially in memory.
+        // Loop Fusion Optimization:
+        // We calculate u(xi_q) and immediately use it to update volume integrals.
+        // This eliminates the need for the intermediate 'u_at_quad_scratch' vector,
+        // reducing memory traffic and iterating over quad nodes only once.
 
         std::fill(volume_ints_scratch.begin(), volume_ints_scratch.end(), 0.0);
 
         for (size_t q = 0; q < quad_nodes.size(); ++q) {
-            // Optimization: quad_weights[q] is already in weighted_d_basis_at_quad
-            double u_val = u_at_quad_scratch[q] * a;
-
             size_t basis_row_start = q * n_modes;
+
+            // 1. Compute u at quad node q on the fly
+            double u_node_val = 0.0;
             for (int k = 0; k < n_modes; ++k) {
-                 volume_ints_scratch[k] += u_val * weighted_d_basis_at_quad[basis_row_start + k];
+                 u_node_val += u[base_idx + k] * basis_at_quad[basis_row_start + k];
+            }
+
+            // 2. Compute flux/term contribution
+            double flux_val = u_node_val * a;
+
+            // 3. Accumulate to volume integrals
+            // Access weighted_d_basis_at_quad sequentially
+            for (int k = 0; k < n_modes; ++k) {
+                 volume_ints_scratch[k] += flux_val * weighted_d_basis_at_quad[basis_row_start + k];
             }
         }
 
