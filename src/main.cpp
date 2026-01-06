@@ -10,6 +10,13 @@
 #include <chrono>
 #include <iomanip>
 #include <cstdlib>
+#include <locale>
+
+// Custom numpunct to add thousands separator (comma)
+struct comma_numpunct : std::numpunct<char> {
+    char do_thousands_sep() const override { return ','; }
+    std::string do_grouping() const override { return "\3"; }
+};
 
 // Check for unistd.h availability for isatty
 #if defined(__unix__) || defined(__APPLE__) || defined(__linux__)
@@ -117,6 +124,11 @@ int main(int argc, char* argv[]) {
         // Auto-disable colors if not TTY
         if (!is_tty) {
             Color::enabled = false;
+        } else {
+            // Palette UX: Enable thousands separator for human-readable output
+            // Only apply if is_tty is true (human is watching), otherwise keep raw numbers
+            std::locale comma_locale(std::locale::classic(), new comma_numpunct());
+            std::cout.imbue(comma_locale);
         }
 
         // Accessibility: Respect NO_COLOR standard (https://no-color.org/)
