@@ -46,6 +46,8 @@ DiscontinuousGalerkinSolver::DiscontinuousGalerkinSolver(int p_order)
 
     // Initialize scratch space
     volume_ints_scratch.resize(n_modes);
+
+    is_initialized = false;
 }
 
 void DiscontinuousGalerkinSolver::initialize(double start, double end, int n_elem) {
@@ -81,9 +83,12 @@ void DiscontinuousGalerkinSolver::initialize(double start, double end, int n_ele
 
     left_ghost = 0.0;
     right_ghost = 0.0;
+
+    is_initialized = true;
 }
 
 void DiscontinuousGalerkinSolver::set_initial_condition(double (*func)(double)) {
+    if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
     // Project initial condition onto basis
     // u_i^k = (2k+1)/2 * integral(f(x)*P_k(xi)) dx
     // Coordinate transform: x = x_center + xi * dx/2
@@ -116,6 +121,14 @@ void DiscontinuousGalerkinSolver::set_initial_condition(double (*func)(double)) 
 }
 
 double DiscontinuousGalerkinSolver::evaluate_element(int element_idx, double xi) const {
+    if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
+    if (element_idx < 0 || element_idx >= n_elements) {
+        throw std::out_of_range("Element index out of bounds: " + std::to_string(element_idx));
+    }
+    if (std::abs(xi) > 1.0 + 1e-12) {
+        throw std::domain_error("Local coordinate xi must be in [-1, 1]. Got: " + std::to_string(xi));
+    }
+
     double val = 0.0;
     int base_idx = element_idx * n_modes;
     if (xi == 1.0) {
@@ -135,6 +148,8 @@ double DiscontinuousGalerkinSolver::evaluate_element(int element_idx, double xi)
 }
 
 void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
+    if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
+
     // DG Formulation:
     // (dx/2) * (2/(2k+1)) * du_k/dt = Volume_Integral - Surface_Terms
     // Volume_Integral = Integral(a * u * dP_k/dx) dx = a * Integral(u * dP_k/dxi * 2/dx) * dx/2 dxi
@@ -207,6 +222,8 @@ void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
 }
 
 void DiscontinuousGalerkinSolver::update_state(double dt) {
+    if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
+
     // Because u and rhs are now flattened vectors of the same size,
     // we can use a single loop.
     // This allows the compiler to vectorize efficiently.
@@ -217,6 +234,8 @@ void DiscontinuousGalerkinSolver::update_state(double dt) {
 }
 
 std::vector<std::pair<double, double>> DiscontinuousGalerkinSolver::get_solution() const {
+    if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
+
     std::vector<std::pair<double, double>> sol;
     int points_per_elem = 5; // Resolution for plotting
     for (int i = 0; i < n_elements; ++i) {

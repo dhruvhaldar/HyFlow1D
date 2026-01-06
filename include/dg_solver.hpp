@@ -39,6 +39,9 @@ private:
     // Scratch space to avoid repeated allocations
     std::vector<double> volume_ints_scratch;
 
+    // Security: Track initialization state to prevent usage of uninitialized memory
+    bool is_initialized;
+
 public:
     DiscontinuousGalerkinSolver(int p_order);
 

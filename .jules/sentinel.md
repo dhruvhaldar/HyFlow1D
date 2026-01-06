@@ -17,3 +17,8 @@
 **Vulnerability:** A Time-of-Check Time-of-Use (TOCTOU) vulnerability existed where `fs::exists` was checked before creating a directory and setting permissions. An attacker could introduce a symlink between the check and the usage, causing `fs::permissions` to modify an arbitrary target file/directory.
 **Learning:** `fs::exists` is not atomic with subsequent operations. Checks on filesystem state are inherently racy.
 **Prevention:** Rely on the return value of atomic operations like `fs::create_directory` (which returns `true` only if it created the directory). Additionally, use `fs::perm_options::nofollow` when setting permissions to prevent traversing unexpected symlinks.
+
+## 2025-01-20 - [Uninitialized State & Out-of-Bounds Access]
+**Vulnerability:** The `DiscontinuousGalerkinSolver` methods could be called before `initialize()`, leading to usage of uninitialized indices and empty vectors (Segfault). Also, internal helper `evaluate_element` lacked bounds checking, allowing potential out-of-bounds reads.
+**Learning:** C++ classes with separate initialization methods (two-phase init) are prone to "Use Before Init" bugs. Internal helpers often assume valid state, but can become security liabilities if exposed or misused.
+**Prevention:** Explicitly track initialization state (`is_initialized`) and enforce checks in all public entry points. Apply "Defense in Depth" by adding bounds checking even in internal helpers.
