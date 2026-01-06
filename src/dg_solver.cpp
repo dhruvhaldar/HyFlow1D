@@ -149,14 +149,19 @@ void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
 
     for (int i = 0; i < n_elements; ++i) {
         double u_left_boundary_val = prev_boundary_val;
-        double u_right_boundary_val = evaluate_element(i, 1.0); // Inside value
+
+        // Optimization: evaluate_element(i, 1.0) is effectively summing u[base_idx + k].
+        // Implementing this inline avoids the function call and the generic loop in evaluate_element.
+        double u_right_boundary_val = 0.0;
+        int base_idx = i * n_modes;
+        for (int k = 0; k < n_modes; ++k) {
+             u_right_boundary_val += u[base_idx + k];
+        }
         prev_boundary_val = u_right_boundary_val;
         
         // Upwind fluxes
         double flux_surf_left = a * u_left_boundary_val;
         double flux_surf_right = a * u_right_boundary_val; 
-        
-        int base_idx = i * n_modes;
 
         // Compute volume integrals for all modes
         // Loop Fusion Optimization:

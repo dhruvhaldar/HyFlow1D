@@ -9,3 +9,11 @@
 ## 2024-05-25 - Loop Fusion in DG RHS
 **Learning:** In the `compute_rhs` function, fusing the loop that computes solution values at quadrature points with the loop that integrates the flux term eliminated the need for an intermediate storage vector (`u_at_quad_scratch`). This reduced memory traffic (writes/reads to L1 cache) and improved instruction level parallelism, yielding a ~5% speedup.
 **Action:** Look for opportunities to compute intermediate values "just-in-time" within the consumer loop to avoid temporary storage, especially when the intermediate data is used immediately and discarded.
+
+## 2025-01-06 - Legendere Derivative Inlining (Rejected)
+**Learning:** Inlining the `legendre_derivative` calculation to compute $P_n$ and $P_{n-1}$ in a single pass instead of calling `legendre` twice seemed like a good optimization, but in this specific benchmark, it resulted in a slowdown (25s -> 29.5s).
+**Action:** The overhead of `legendre` might be negligible compared to other parts, or the compiler was already optimizing the repeated calls effectively.
+
+## 2025-01-06 - Inlining Boundary Evaluation in Hot Loop
+**Learning:** In the `compute_rhs` loop, replacing the generic `evaluate_element(i, 1.0)` call with an inline summation of coefficients (since $P_k(1) = 1$) reduced overhead significantly. This is because `evaluate_element` involves branching for `xi = 1.0` and potential function call overhead, which adds up inside the hot loop over elements and time steps.
+**Action:** For boundary values in hot loops, specialize the evaluation manually if the basis function properties (like $P_k(1)=1$) allow for a simple sum, avoiding the cost of a general-purpose evaluation function.
