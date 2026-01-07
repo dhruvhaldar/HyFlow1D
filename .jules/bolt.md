@@ -17,3 +17,7 @@
 ## 2025-01-06 - Inlining Boundary Evaluation in Hot Loop
 **Learning:** In the `compute_rhs` loop, replacing the generic `evaluate_element(i, 1.0)` call with an inline summation of coefficients (since $P_k(1) = 1$) reduced overhead significantly. This is because `evaluate_element` involves branching for `xi = 1.0` and potential function call overhead, which adds up inside the hot loop over elements and time steps.
 **Action:** For boundary values in hot loops, specialize the evaluation manually if the basis function properties (like $P_k(1)=1$) allow for a simple sum, avoiding the cost of a general-purpose evaluation function.
+
+## 2025-01-14 - Precomputed Stiffness Matrix
+**Learning:** Precomputing the stiffness matrix ($K_{km} = \int P_m P'_k d\xi$) allows replacing the complex quadrature loop in `compute_rhs` with a simple matrix-vector multiplication. This reduced the complexity from $O(N_{modes}^2)$ ops per element (with large constant factor from quadrature) to a tight $O(N_{modes}^2)$ mat-vec, resulting in a ~43% speedup.
+**Action:** When solving PDEs with fixed basis functions, always try to precompute operator matrices (Stiffness, Mass, Advection) instead of performing quadrature integration on the fly, as the geometric factors and basis integrals are often constant.

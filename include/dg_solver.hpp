@@ -32,6 +32,10 @@ private:
     // Optimization: Precomputed inverse mass matrix diagonal
     std::vector<double> inv_mass_matrix;
 
+    // Optimization: Precomputed stiffness matrix (integral of basis * derivative of basis)
+    // Flattened: [row * n_modes + col]
+    std::vector<double> stiffness_matrix;
+
     // Ghost values for numerical flux
     double left_ghost;
     double right_ghost;
