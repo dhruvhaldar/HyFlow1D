@@ -2,17 +2,25 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import glob
 import os
+import sys
 
 def plot_all():
-    # Check if output dir exists, else use current
-    search_path = "output/solution_*.csv"
-    if not glob.glob(search_path):
-        search_path = "solution_*.csv"
+    # Determine search path
+    if len(sys.argv) > 1:
+        # Use provided directory
+        search_dir = sys.argv[1]
+        search_path = os.path.join(search_dir, "solution_*.csv")
+    else:
+        # Auto-detect: check 'output/' first, then current directory
+        if glob.glob("output/solution_*.csv"):
+            search_path = "output/solution_*.csv"
+        else:
+            search_path = "solution_*.csv"
 
     files = sorted(glob.glob(search_path), key=lambda f: int(''.join(filter(str.isdigit, f)) or 999999))
     
     if not files:
-        print("No solution files found.")
+        print(f"No solution files found in search path: {search_path}")
         return
 
     # Plot initial, middle, and final
