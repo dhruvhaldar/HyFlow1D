@@ -44,6 +44,21 @@ DiscontinuousGalerkinSolver::DiscontinuousGalerkinSolver(int p_order)
         }
     }
 
+    // Precompute stiffness matrix K_km = Integral(P_m * P'_k) dxi
+    stiffness_matrix.resize(n_modes * n_modes, 0.0);
+    for (int k = 0; k < n_modes; ++k) {
+        for (int m = 0; m < n_modes; ++m) {
+            double sum = 0.0;
+            for (size_t q = 0; q < quad_nodes.size(); ++q) {
+                // sum += w_q * P_m(q) * P'_k(q)
+                // basis_at_quad[q*n_modes + m] is P_m(q)
+                // weighted_d_basis_at_quad[q*n_modes + k] is w_q * P'_k(q)
+                sum += basis_at_quad[q * n_modes + m] * weighted_d_basis_at_quad[q * n_modes + k];
+            }
+            stiffness_matrix[k * n_modes + m] = sum;
+        }
+    }
+
     // Initialize scratch space
     volume_ints_scratch.resize(n_modes);
 
@@ -178,35 +193,17 @@ void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
         double flux_surf_left = a * u_left_boundary_val;
         double flux_surf_right = a * u_right_boundary_val; 
 
-        // Compute volume integrals for all modes
-        // Loop Fusion Optimization:
-        // We calculate u(xi_q) and immediately use it to update volume integrals.
-        // This eliminates the need for the intermediate 'u_at_quad_scratch' vector,
-        // reducing memory traffic and iterating over quad nodes only once.
-
-        std::fill(volume_ints_scratch.begin(), volume_ints_scratch.end(), 0.0);
-
-        for (size_t q = 0; q < quad_nodes.size(); ++q) {
-            size_t basis_row_start = q * n_modes;
-
-            // 1. Compute u at quad node q on the fly
-            double u_node_val = 0.0;
-            for (int k = 0; k < n_modes; ++k) {
-                 u_node_val += u[base_idx + k] * basis_at_quad[basis_row_start + k];
-            }
-
-            // 2. Compute flux/term contribution
-            double flux_val = u_node_val * a;
-
-            // 3. Accumulate to volume integrals
-            // Access weighted_d_basis_at_quad sequentially
-            for (int k = 0; k < n_modes; ++k) {
-                 volume_ints_scratch[k] += flux_val * weighted_d_basis_at_quad[basis_row_start + k];
-            }
-        }
+        // Compute volume integrals for all modes using Precomputed Stiffness Matrix
+        // Optimization: Replace quadrature loop with matrix-vector multiplication
+        // VolInt_k = a * Integral(u * dP_k/dxi) = a * sum_m (u_m * K_km)
 
         for (int k = 0; k < n_modes; ++k) {
-            double volume_int = volume_ints_scratch[k];
+            double volume_int = 0.0;
+            // Matrix-vector multiplication: Row k of Stiffness * u vector
+            for (int m = 0; m < n_modes; ++m) {
+                 volume_int += stiffness_matrix[k * n_modes + m] * u[base_idx + m];
+            }
+            volume_int *= a;
             
             // Surface terms
             // P_k(1) = 1, P_k(-1) = (-1)^k
