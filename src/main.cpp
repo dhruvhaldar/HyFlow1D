@@ -279,6 +279,13 @@ int main(int argc, char* argv[]) {
                   << std::setprecision(0) << steps_per_sec << " steps/s)." << Color::Reset << "\n"
                   << "Results saved in " << Color::Bold << output_dir << "/" << Color::Reset << std::endl;
 
+        // Palette UX: Suggest next step
+        std::string viz_cmd = "python3 scripts/plot_results.py";
+        if (output_dir != "output") {
+            viz_cmd += " " + output_dir;
+        }
+        std::cout << "Visualize with: " << Color::Yellow << viz_cmd << Color::Reset << std::endl;
+
     } catch (const std::exception& e) {
         std::cerr << Color::BoldRed << "\nFATAL ERROR: " << e.what() << Color::Reset << std::endl;
         return 1;
