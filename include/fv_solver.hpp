@@ -16,6 +16,8 @@ private:
     double left_ghost;
     double right_ghost;
 
+    bool is_initialized = false;
+
 public:
     void initialize(double x_start, double x_end, int n_elements) override;
     void set_initial_condition(double (*func)(double)) override;
