@@ -200,7 +200,10 @@ void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
         for (int k = 0; k < n_modes; ++k) {
             double volume_int = 0.0;
             // Matrix-vector multiplication: Row k of Stiffness * u vector
-            for (int m = 0; m < n_modes; ++m) {
+            // Optimization: Stiffness matrix is strictly lower triangular (m < k)
+            // K_km = Integral(P_m * P'_k) dxi. Since deg(P'_k) = k-1 and deg(P_m) = m,
+            // integral is 0 if m > k-1 (orthogonality). So only loop m < k.
+            for (int m = 0; m < k; ++m) {
                  volume_int += stiffness_matrix[k * n_modes + m] * u[base_idx + m];
             }
             volume_int *= a;
