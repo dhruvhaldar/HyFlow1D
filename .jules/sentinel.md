@@ -22,3 +22,7 @@
 **Vulnerability:** The `DiscontinuousGalerkinSolver` methods could be called before `initialize()`, leading to usage of uninitialized indices and empty vectors (Segfault). Also, internal helper `evaluate_element` lacked bounds checking, allowing potential out-of-bounds reads.
 **Learning:** C++ classes with separate initialization methods (two-phase init) are prone to "Use Before Init" bugs. Internal helpers often assume valid state, but can become security liabilities if exposed or misused.
 **Prevention:** Explicitly track initialization state (`is_initialized`) and enforce checks in all public entry points. Apply "Defense in Depth" by adding bounds checking even in internal helpers.
+## 2025-01-20 - [Input Validation for File Paths]
+**Vulnerability:** The application accepted arbitrary file paths for the output directory (`-o`), allowing Path Traversal attacks (e.g., `-o ../etc`) which could lead to arbitrary file writes outside the intended directory.
+**Learning:** CLI tools often trust user input for file paths implicitly. Relying on the OS to handle permissions is insufficient defense-in-depth, especially if the tool might run with elevated privileges or in shared environments.
+**Prevention:** Explicitly validate all user-provided file paths. Reject paths containing directory traversal components (`..`) unless specifically required and authorized. Use `std::filesystem` to parse and inspect path components reliably.
