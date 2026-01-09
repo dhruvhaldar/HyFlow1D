@@ -3,25 +3,49 @@ import pandas as pd
 import glob
 import os
 import sys
+import argparse
 
 def plot_all():
+    parser = argparse.ArgumentParser(
+        description="Visualize HyFlow1D simulation results.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+
+    parser.add_argument(
+        "input_dir",
+        nargs="?",
+        default=None,
+        help="Directory containing solution_*.csv files. Defaults to 'output/' or current directory."
+    )
+    parser.add_argument(
+        "-o", "--output",
+        default="advection_plot.png",
+        help="Output filename for the plot image."
+    )
+
+    args = parser.parse_args()
+
     # Determine search path
-    if len(sys.argv) > 1:
-        # Use provided directory
-        search_dir = sys.argv[1]
-        search_path = os.path.join(search_dir, "solution_*.csv")
+    if args.input_dir:
+        search_path = os.path.join(args.input_dir, "solution_*.csv")
+        display_dir = args.input_dir
     else:
         # Auto-detect: check 'output/' first, then current directory
         if glob.glob("output/solution_*.csv"):
             search_path = "output/solution_*.csv"
+            display_dir = "output/"
         else:
             search_path = "solution_*.csv"
+            display_dir = "./"
 
-    files = sorted(glob.glob(search_path), key=lambda f: int(''.join(filter(str.isdigit, f)) or 999999))
+    files = sorted(glob.glob(search_path), key=lambda f: int(''.join(filter(str.isdigit, os.path.basename(f))) or 999999))
     
     if not files:
-        print(f"No solution files found in search path: {search_path}")
+        print(f"❌ No solution files found in: {display_dir}")
+        print("   (Looking for 'solution_*.csv')")
         return
+
+    print(f"📊 Found {len(files)} solution files in '{display_dir}'")
 
     # Plot initial, middle, and final
     # Limit to a few frames
@@ -34,17 +58,27 @@ def plot_all():
     plt.figure(figsize=(10, 6))
     
     for f in files_to_plot:
-        data = pd.read_csv(f)
-        plt.plot(data['x'], data['u'], label=f"File {f}")
+        try:
+            data = pd.read_csv(f)
+            # Extract step number for label
+            step_num = ''.join(filter(str.isdigit, os.path.basename(f)))
+            label = f"Step {step_num}" if step_num else os.path.basename(f)
+            plt.plot(data['x'], data['u'], label=label)
+        except Exception as e:
+            print(f"⚠️  Warning: Could not read {f}: {e}")
         
     plt.axvline(x=0.5, color='k', linestyle='--', label='Interface (FV | DG)')
-    plt.xlabel('x')
-    plt.ylabel('u')
-    plt.title('Hybrid FV-DG Linear Advection')
+    plt.xlabel('Position (x)')
+    plt.ylabel('Value (u)')
+    plt.title('Hybrid FV-DG Linear Advection Simulation')
     plt.legend()
-    plt.grid(True)
-    plt.savefig('advection_plot.png')
-    print("Plot saved to advection_plot.png")
+    plt.grid(True, alpha=0.3)
+
+    try:
+        plt.savefig(args.output, dpi=150)
+        print(f"✅ Plot saved to: {os.path.abspath(args.output)}")
+    except Exception as e:
+        print(f"❌ Error saving plot: {e}")
 
 if __name__ == "__main__":
     plot_all()
