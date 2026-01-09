@@ -39,6 +39,16 @@ double initial_condition(double x) {
     return std::exp(-(x - center) * (x - center) / (2 * width * width));
 }
 
+// Security: Validate path to prevent directory traversal
+bool is_safe_path(const std::string& path_str) {
+    if (path_str.empty()) return false;
+    std::filesystem::path path(path_str);
+    for (const auto& part : path) {
+        if (part == "..") return false;
+    }
+    return true;
+}
+
 void write_solution(const std::string& filename, const std::vector<std::pair<double, double>>& solution) {
     std::ofstream outfile(filename);
     if (!outfile.is_open()) {
@@ -145,6 +155,11 @@ int main(int argc, char* argv[]) {
             } else if (strcmp(argv[i], "-o") == 0 || strcmp(argv[i], "--output") == 0) {
                 if (i + 1 < argc) {
                     output_dir = argv[++i];
+                    // Security: Validate output directory input
+                    if (!is_safe_path(output_dir)) {
+                        std::cerr << Color::BoldRed << "Error: Invalid output directory. Path traversal ('..') is not allowed." << Color::Reset << std::endl;
+                        return 1;
+                    }
                 } else {
                     std::cerr << "Error: Output directory not specified after " << argv[i] << std::endl;
                     return 1;
