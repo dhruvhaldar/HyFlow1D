@@ -184,8 +184,10 @@ void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
         // Implementing this inline avoids the function call and the generic loop in evaluate_element.
         double u_right_boundary_val = 0.0;
         int base_idx = i * n_modes;
+        const double* u_elem = &u[base_idx];
+
         for (int k = 0; k < n_modes; ++k) {
-             u_right_boundary_val += u[base_idx + k];
+             u_right_boundary_val += u_elem[k];
         }
         prev_boundary_val = u_right_boundary_val;
         
@@ -197,6 +199,10 @@ void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
         // Optimization: Replace quadrature loop with matrix-vector multiplication
         // VolInt_k = a * Integral(u * dP_k/dxi) = a * sum_m (u_m * K_km)
 
+        const double* K_ptr = stiffness_matrix.data();
+        double* rhs_elem = &rhs[base_idx];
+        double sign = 1.0; // toggles 1.0, -1.0 for P_k(-1) = (-1)^k
+
         for (int k = 0; k < n_modes; ++k) {
             double volume_int = 0.0;
             // Matrix-vector multiplication: Row k of Stiffness * u vector
@@ -204,19 +210,22 @@ void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
             // K_km = Integral(P_m * P'_k) dxi. Since deg(P'_k) = k-1 and deg(P_m) = m,
             // integral is 0 if m > k-1 (orthogonality). So only loop m < k.
             for (int m = 0; m < k; ++m) {
-                 volume_int += stiffness_matrix[k * n_modes + m] * u[base_idx + m];
+                 volume_int += K_ptr[m] * u_elem[m];
             }
             volume_int *= a;
             
             // Surface terms
             // P_k(1) = 1, P_k(-1) = (-1)^k
-            double surf_right = flux_surf_right * 1.0; 
-            double surf_left  = flux_surf_left * ((k % 2 == 0) ? 1.0 : -1.0);
+            double surf_right = flux_surf_right; // * 1.0
+            double surf_left  = flux_surf_left * sign;
             
             double total_rhs = volume_int - (surf_right - surf_left);
             
             // Optimization: Use precomputed inverse mass matrix
-            rhs[base_idx + k] = total_rhs * inv_mass_matrix[k];
+            rhs_elem[k] = total_rhs * inv_mass_matrix[k];
+
+            K_ptr += n_modes;
+            sign = -sign;
         }
     }
 }
