@@ -8,3 +8,7 @@ This journal records critical UX and accessibility learnings for the HyFlow1D pr
 
 **Learning:** The `NO_COLOR` standard is a simple, high-impact accessibility feature for CLI tools that allows users to disable ANSI colors via environment variables, supporting screen readers and logs.
 **Action:** Implement `NO_COLOR` check in CLI entry points.
+
+## 2024-05-23 - Relative Paths in CLI Hints
+**Learning:** CLI tools often suggest follow-up commands (e.g., visualization scripts). However, standard build workflows (like `mkdir build && cd build`) change the working directory, breaking relative path assumptions if the suggestion is hardcoded.
+**Action:** Use runtime path detection (e.g., `std::filesystem`) to verify existence of helper scripts and dynamically adjust the suggested command path.

@@ -117,6 +117,7 @@ void draw_progress_bar(int step, int total_steps, double elapsed_seconds, double
 
 int main(int argc, char* argv[]) {
     try {
+        namespace fs = std::filesystem;
         bool verbose = false;
         std::string output_dir = "output";
 
@@ -180,8 +181,6 @@ int main(int argc, char* argv[]) {
         }
 
         // Create output directory
-        namespace fs = std::filesystem;
-
         // Security Check: Verify output_dir is not a file
         if (fs::exists(output_dir) && !fs::is_directory(output_dir)) {
             throw std::runtime_error("Output path '" + output_dir + "' exists and is not a directory.");
@@ -289,13 +288,20 @@ int main(int argc, char* argv[]) {
         std::chrono::duration<double> total_elapsed = end_time - start_time;
         double steps_per_sec = (total_elapsed.count() > 0) ? (total_steps / total_elapsed.count()) : 0.0;
 
-        std::cout << Color::BoldGreen << "Simulation Complete in "
+        std::cout << Color::BoldGreen << "✔ Simulation Complete in "
                   << std::fixed << std::setprecision(2) << total_elapsed.count() << "s ("
                   << std::setprecision(0) << steps_per_sec << " steps/s)." << Color::Reset << "\n"
                   << "Results saved in " << Color::Bold << output_dir << "/" << Color::Reset << std::endl;
 
-        // Palette UX: Suggest next step
-        std::string viz_cmd = "python3 scripts/plot_results.py";
+        // Palette UX: Suggest next step with smart path detection
+        std::string script_path = "scripts/plot_results.py";
+        if (!fs::exists(script_path)) {
+            if (fs::exists("../scripts/plot_results.py")) {
+                script_path = "../scripts/plot_results.py";
+            }
+        }
+
+        std::string viz_cmd = "python3 " + script_path;
         if (output_dir != "output") {
             viz_cmd += " " + output_dir;
         }
