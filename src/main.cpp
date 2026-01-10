@@ -11,6 +11,7 @@
 #include <iomanip>
 #include <cstdlib>
 #include <locale>
+#include <csignal>
 
 // Custom numpunct to add thousands separator (comma)
 struct comma_numpunct : std::numpunct<char> {
@@ -31,6 +32,17 @@ struct comma_numpunct : std::numpunct<char> {
 #include "dg_solver.hpp"
 #include "hybrid_coupling.hpp"
 #include "term_colors.hpp"
+
+// Signal Handler for Graceful Shutdown
+// Note: We use volatile sig_atomic_t for async-signal-safety.
+// We avoid calling unsafe functions (like IO) in the handler directly.
+volatile std::sig_atomic_t g_signal_status = 0;
+
+void signal_handler(int signum) {
+    if (signum == SIGINT) {
+        g_signal_status = signum;
+    }
+}
 
 // Initial Condition: Gaussian Pulse
 double initial_condition(double x) {
@@ -116,6 +128,9 @@ void draw_progress_bar(int step, int total_steps, double elapsed_seconds, double
 }
 
 int main(int argc, char* argv[]) {
+    // Register signal handler
+    std::signal(SIGINT, signal_handler);
+
     try {
         namespace fs = std::filesystem;
         bool verbose = false;
@@ -252,6 +267,13 @@ int main(int argc, char* argv[]) {
         auto start_time = std::chrono::steady_clock::now();
 
         while (t < t_final) {
+            if (g_signal_status == SIGINT) {
+                std::cout << Color::Reset << "\n";
+                std::cerr << Color::BoldRed << "\n[!] Simulation interrupted by user." << Color::Reset << std::endl;
+                // Break loop to allow RAII cleanup (e.g. file buffers, solvers)
+                return 130;
+            }
+
             if (step % output_interval == 0) {
                 std::string fname = output_dir + "/solution_" + std::to_string(step) + ".csv";
                 write_solution(fname, hybrid.get_solution());
