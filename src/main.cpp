@@ -5,6 +5,7 @@
 #include <cmath>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <cstring>
 #include <filesystem>
 #include <chrono>
@@ -12,6 +13,8 @@
 #include <cstdlib>
 #include <locale>
 #include <csignal>
+#include <algorithm>
+#include <numeric>
 
 // Custom numpunct to add thousands separator (comma)
 struct comma_numpunct : std::numpunct<char> {
@@ -88,6 +91,46 @@ void show_usage(const char* prog_name) {
               << "  " << Color::Bold << "Examples:" << Color::Reset << "\n"
               << "    " << prog_name << "\n"
               << "    " << prog_name << " -o my_results -v\n";
+}
+
+// UX Helper: Calculate Levenshtein distance for "Did you mean?" suggestions
+int levenshtein_distance(std::string_view s1, std::string_view s2) {
+    const size_t m = s1.length();
+    const size_t n = s2.length();
+    if (m == 0) return n;
+    if (n == 0) return m;
+
+    std::vector<int> costs(n + 1);
+    std::iota(costs.begin(), costs.end(), 0);
+
+    for (size_t i = 0; i < m; ++i) {
+        int prev = costs[0];
+        costs[0] = i + 1;
+        for (size_t j = 0; j < n; ++j) {
+            int temp = costs[j + 1];
+            costs[j + 1] = std::min({ prev + (s1[i] == s2[j] ? 0 : 1), costs[j] + 1, costs[j + 1] + 1 });
+            prev = temp;
+        }
+    }
+    return costs[n];
+}
+
+void suggest_flag(const std::string& invalid_flag) {
+    const std::vector<std::string> valid_flags = {"--help", "-h", "--verbose", "-v", "--output", "-o"};
+    std::string best_match;
+    int min_dist = 100;
+
+    for (const auto& flag : valid_flags) {
+        int dist = levenshtein_distance(invalid_flag, flag);
+        if (dist < min_dist) {
+            min_dist = dist;
+            best_match = flag;
+        }
+    }
+
+    if (min_dist <= 3) {
+         std::cerr << "       Did you mean '" << Color::Yellow << best_match << Color::Reset << "'?" << std::endl;
+    }
 }
 
 void draw_progress_bar(int step, int total_steps, double elapsed_seconds, double t_current, double t_final) {
@@ -184,6 +227,7 @@ int main(int argc, char* argv[]) {
                 // Check if it looks like a flag
                 if (argv[i][0] == '-') {
                     std::cerr << Color::BoldRed << "Error: Unknown option '" << argv[i] << "'" << Color::Reset << std::endl;
+                    suggest_flag(argv[i]);
                     show_usage(argv[0]);
                     return 1;
                 } else {

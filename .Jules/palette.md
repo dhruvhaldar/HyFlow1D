@@ -12,3 +12,7 @@ This journal records critical UX and accessibility learnings for the HyFlow1D pr
 ## 2024-05-23 - Relative Paths in CLI Hints
 **Learning:** CLI tools often suggest follow-up commands (e.g., visualization scripts). However, standard build workflows (like `mkdir build && cd build`) change the working directory, breaking relative path assumptions if the suggestion is hardcoded.
 **Action:** Use runtime path detection (e.g., `std::filesystem`) to verify existence of helper scripts and dynamically adjust the suggested command path.
+
+## 2024-05-24 - Typo Tolerance in CLI
+**Learning:** Users frequently mistype short flags (e.g., `--outupt` vs `--output`). Implementing a simple "Did you mean?" suggestion system using Levenshtein distance significantly reduces friction and makes the tool feel more helpful rather than just rigid.
+**Action:** Implement fuzzy matching for unknown arguments in CLI entry points.
