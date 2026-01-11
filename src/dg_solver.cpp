@@ -162,8 +162,77 @@ double DiscontinuousGalerkinSolver::evaluate_element(int element_idx, double xi)
     return val;
 }
 
+namespace {
+    template <int N>
+    void compute_rhs_optimized(int n_elements,
+                               const double* u,
+                               double* rhs,
+                               const double* stiffness_matrix,
+                               const double* inv_mass_matrix,
+                               double left_ghost,
+                               double a) {
+        double prev_boundary_val = left_ghost;
+
+        for (int i = 0; i < n_elements; ++i) {
+            double u_left_boundary_val = prev_boundary_val;
+
+            double u_right_boundary_val = 0.0;
+            const double* u_elem = &u[i * N];
+
+            // Unrolled loop for boundary value
+            for (int k = 0; k < N; ++k) {
+                 u_right_boundary_val += u_elem[k];
+            }
+            prev_boundary_val = u_right_boundary_val;
+
+            double flux_surf_left = a * u_left_boundary_val;
+            double flux_surf_right = a * u_right_boundary_val;
+
+            const double* K_ptr = stiffness_matrix;
+            double* rhs_elem = &rhs[i * N];
+            double sign = 1.0;
+
+            for (int k = 0; k < N; ++k) {
+                double volume_int = 0.0;
+                for (int m = 0; m < k; ++m) {
+                     volume_int += K_ptr[m] * u_elem[m];
+                }
+                volume_int *= a;
+
+                double surf_right = flux_surf_right;
+                double surf_left  = flux_surf_left * sign;
+
+                double total_rhs = volume_int - (surf_right - surf_left);
+
+                rhs_elem[k] = total_rhs * inv_mass_matrix[k];
+
+                K_ptr += N;
+                sign = -sign;
+            }
+        }
+    }
+}
+
 void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
     if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
+
+    // Optimization: Dispatch to fixed-size template for common polynomial orders (P=0 to P=3)
+    // This allows the compiler to fully unroll the inner loops over modes (N)
+    // n_modes = p_order + 1.
+    switch (n_modes) {
+        case 1: // P=0
+            compute_rhs_optimized<1>(n_elements, u.data(), rhs.data(), stiffness_matrix.data(), inv_mass_matrix.data(), left_ghost, a);
+            return;
+        case 2: // P=1
+            compute_rhs_optimized<2>(n_elements, u.data(), rhs.data(), stiffness_matrix.data(), inv_mass_matrix.data(), left_ghost, a);
+            return;
+        case 3: // P=2
+            compute_rhs_optimized<3>(n_elements, u.data(), rhs.data(), stiffness_matrix.data(), inv_mass_matrix.data(), left_ghost, a);
+            return;
+        case 4: // P=3
+            compute_rhs_optimized<4>(n_elements, u.data(), rhs.data(), stiffness_matrix.data(), inv_mass_matrix.data(), left_ghost, a);
+            return;
+    }
 
     // DG Formulation:
     // (dx/2) * (2/(2k+1)) * du_k/dt = Volume_Integral - Surface_Terms
