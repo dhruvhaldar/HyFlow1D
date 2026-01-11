@@ -4,6 +4,7 @@ import glob
 import os
 import sys
 import argparse
+from itertools import cycle
 
 def plot_all():
     parser = argparse.ArgumentParser(
@@ -56,6 +57,9 @@ def plot_all():
         files_to_plot = files
 
     plt.figure(figsize=(10, 6))
+
+    # Cycle through line styles for better accessibility (colorblind friendly)
+    line_styles = cycle(['-', '--', '-.', ':'])
     
     for f in files_to_plot:
         try:
@@ -63,11 +67,11 @@ def plot_all():
             # Extract step number for label
             step_num = ''.join(filter(str.isdigit, os.path.basename(f)))
             label = f"Step {step_num}" if step_num else os.path.basename(f)
-            plt.plot(data['x'], data['u'], label=label)
+            plt.plot(data['x'], data['u'], label=label, linestyle=next(line_styles), linewidth=2)
         except Exception as e:
             print(f"⚠️  Warning: Could not read {f}: {e}")
         
-    plt.axvline(x=0.5, color='k', linestyle='--', label='Interface (FV | DG)')
+    plt.axvline(x=0.5, color='gray', linestyle='--', alpha=0.7, label='Interface (FV | DG)')
     plt.xlabel('Position (x)')
     plt.ylabel('Value (u)')
     plt.title('Hybrid FV-DG Linear Advection Simulation')
