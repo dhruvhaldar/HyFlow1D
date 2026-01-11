@@ -4,6 +4,22 @@ import glob
 import os
 import sys
 import argparse
+import pathlib
+
+def is_safe_path(path_str):
+    """
+    Security: Validate path to prevent directory traversal.
+    Returns False if path contains '..' components.
+    """
+    if not path_str:
+        return True
+    try:
+        path = pathlib.Path(path_str)
+        if ".." in path.parts:
+            return False
+        return True
+    except Exception:
+        return False
 
 def plot_all():
     parser = argparse.ArgumentParser(
@@ -24,6 +40,15 @@ def plot_all():
     )
 
     args = parser.parse_args()
+
+    # Security: Validate inputs
+    if not is_safe_path(args.output):
+        print(f"❌ Error: Invalid output path '{args.output}'. Path traversal ('..') is not allowed.", file=sys.stderr)
+        sys.exit(1)
+
+    if args.input_dir and not is_safe_path(args.input_dir):
+        print(f"❌ Error: Invalid input directory '{args.input_dir}'. Path traversal ('..') is not allowed.", file=sys.stderr)
+        sys.exit(1)
 
     # Determine search path
     if args.input_dir:
