@@ -33,7 +33,8 @@ private:
     std::vector<double> inv_mass_matrix;
 
     // Optimization: Precomputed stiffness matrix (integral of basis * derivative of basis)
-    // Flattened: [row * n_modes + col]
+    // Flattened triangular packing: Stores only non-zeros (m < k).
+    // Structure: [Row 1 (1 elem), Row 2 (2 elems), Row 3 (3 elems), ...]
     std::vector<double> stiffness_matrix;
 
     // Ghost values for numerical flux

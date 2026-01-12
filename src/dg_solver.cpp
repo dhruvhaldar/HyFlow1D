@@ -45,17 +45,23 @@ DiscontinuousGalerkinSolver::DiscontinuousGalerkinSolver(int p_order)
     }
 
     // Precompute stiffness matrix K_km = Integral(P_m * P'_k) dxi
-    stiffness_matrix.resize(n_modes * n_modes, 0.0);
+    // Optimization: Matrix is strictly lower triangular (0 for m >= k).
+    // We pack it to store only m < k elements.
+    // Size = sum(k=0 to n_modes-1) of k = n_modes * (n_modes - 1) / 2
+    size_t packed_size = n_modes * (n_modes - 1) / 2;
+    stiffness_matrix.resize(packed_size);
+
+    size_t packed_idx = 0;
+    // Iterate rows k
     for (int k = 0; k < n_modes; ++k) {
-        for (int m = 0; m < n_modes; ++m) {
+        // Iterate cols m < k
+        for (int m = 0; m < k; ++m) {
             double sum = 0.0;
             for (size_t q = 0; q < quad_nodes.size(); ++q) {
                 // sum += w_q * P_m(q) * P'_k(q)
-                // basis_at_quad[q*n_modes + m] is P_m(q)
-                // weighted_d_basis_at_quad[q*n_modes + k] is w_q * P'_k(q)
                 sum += basis_at_quad[q * n_modes + m] * weighted_d_basis_at_quad[q * n_modes + k];
             }
-            stiffness_matrix[k * n_modes + m] = sum;
+            stiffness_matrix[packed_idx++] = sum;
         }
     }
 
@@ -194,6 +200,8 @@ namespace {
 
             for (int k = 0; k < N; ++k) {
                 double volume_int = 0.0;
+                // Inner loop m < k matches the packed row length of k.
+                // Valid indices for K_ptr are 0 to k-1.
                 for (int m = 0; m < k; ++m) {
                      volume_int += K_ptr[m] * u_elem[m];
                 }
@@ -206,7 +214,8 @@ namespace {
 
                 rhs_elem[k] = total_rhs * inv_mass_matrix[k];
 
-                K_ptr += N;
+                // Optimization: Advance pointer by row length (k) for packed storage
+                K_ptr += k;
                 sign = -sign;
             }
         }
@@ -278,6 +287,7 @@ void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
             // Optimization: Stiffness matrix is strictly lower triangular (m < k)
             // K_km = Integral(P_m * P'_k) dxi. Since deg(P'_k) = k-1 and deg(P_m) = m,
             // integral is 0 if m > k-1 (orthogonality). So only loop m < k.
+            // Packed storage ensures we only store and access m < k elements.
             for (int m = 0; m < k; ++m) {
                  volume_int += K_ptr[m] * u_elem[m];
             }
@@ -293,7 +303,8 @@ void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
             // Optimization: Use precomputed inverse mass matrix
             rhs_elem[k] = total_rhs * inv_mass_matrix[k];
 
-            K_ptr += n_modes;
+            // Optimization: Advance pointer by row length (k) for packed storage
+            K_ptr += k;
             sign = -sign;
         }
     }
