@@ -1,10 +1,18 @@
-import matplotlib.pyplot as plt
-import pandas as pd
+import sys
 import glob
 import os
-import sys
 import argparse
 from itertools import cycle
+
+try:
+    import matplotlib.pyplot as plt
+    import pandas as pd
+except ImportError as e:
+    print("\n❌ Error: Missing required dependencies for visualization.")
+    print(f"   Reason: {e}")
+    print("\n💡 Please install them with:")
+    print("   pip install matplotlib pandas\n")
+    sys.exit(1)
 
 def plot_all():
     parser = argparse.ArgumentParser(
