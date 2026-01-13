@@ -4,14 +4,28 @@ import os
 import argparse
 from itertools import cycle
 
+# Palette: Setup colors for better UX (respects NO_COLOR standard)
+class Colors:
+    _enabled = sys.stdout.isatty() and os.getenv("NO_COLOR") is None
+
+    RESET   = "\033[0m" if _enabled else ""
+    BOLD    = "\033[1m" if _enabled else ""
+    RED     = "\033[31m" if _enabled else ""
+    GREEN   = "\033[32m" if _enabled else ""
+    YELLOW  = "\033[33m" if _enabled else ""
+    BLUE    = "\033[34m" if _enabled else ""
+
+    BOLD_RED     = "\033[1;31m" if _enabled else ""
+    BOLD_GREEN   = "\033[1;32m" if _enabled else ""
+
 try:
     import matplotlib.pyplot as plt
     import pandas as pd
 except ImportError as e:
-    print("\n❌ Error: Missing required dependencies for visualization.")
+    print(f"\n{Colors.BOLD_RED}❌ Error: Missing required dependencies for visualization.{Colors.RESET}")
     print(f"   Reason: {e}")
-    print("\n💡 Please install them with:")
-    print("   pip install matplotlib pandas\n")
+    print(f"\n{Colors.YELLOW}💡 Please install them with:{Colors.RESET}")
+    print(f"   pip install matplotlib pandas\n")
     sys.exit(1)
 
 def plot_all():
@@ -39,10 +53,13 @@ def plot_all():
         search_path = os.path.join(args.input_dir, "solution_*.csv")
         display_dir = args.input_dir
     else:
-        # Auto-detect: check 'output/' first, then current directory
+        # Auto-detect: check 'output/' first, then 'build/output/', then current directory
         if glob.glob("output/solution_*.csv"):
             search_path = "output/solution_*.csv"
             display_dir = "output/"
+        elif glob.glob("build/output/solution_*.csv"):
+            search_path = "build/output/solution_*.csv"
+            display_dir = "build/output/"
         else:
             search_path = "solution_*.csv"
             display_dir = "./"
@@ -50,11 +67,11 @@ def plot_all():
     files = sorted(glob.glob(search_path), key=lambda f: int(''.join(filter(str.isdigit, os.path.basename(f))) or 999999))
     
     if not files:
-        print(f"❌ No solution files found in: {display_dir}")
-        print("   (Looking for 'solution_*.csv')")
+        print(f"{Colors.BOLD_RED}❌ No solution files found in: {display_dir}{Colors.RESET}")
+        print(f"   (Looking for 'solution_*.csv')")
         return
 
-    print(f"📊 Found {len(files)} solution files in '{display_dir}'")
+    print(f"{Colors.BOLD}📊 Found {Colors.BLUE}{len(files)}{Colors.RESET}{Colors.BOLD} solution files in '{display_dir}'{Colors.RESET}")
 
     # Plot initial, middle, and final
     # Limit to a few frames
@@ -77,7 +94,7 @@ def plot_all():
             label = f"Step {step_num}" if step_num else os.path.basename(f)
             plt.plot(data['x'], data['u'], label=label, linestyle=next(line_styles), linewidth=2)
         except Exception as e:
-            print(f"⚠️  Warning: Could not read {f}: {e}")
+            print(f"{Colors.YELLOW}⚠️  Warning: Could not read {f}: {e}{Colors.RESET}")
         
     plt.axvline(x=0.5, color='gray', linestyle='--', alpha=0.7, label='Interface (FV | DG)')
     plt.xlabel('Position (x)')
@@ -88,9 +105,9 @@ def plot_all():
 
     try:
         plt.savefig(args.output, dpi=150)
-        print(f"✅ Plot saved to: {os.path.abspath(args.output)}")
+        print(f"{Colors.BOLD_GREEN}✅ Plot saved to: {Colors.RESET}{Colors.BOLD}{os.path.abspath(args.output)}{Colors.RESET}")
     except Exception as e:
-        print(f"❌ Error saving plot: {e}")
+        print(f"{Colors.BOLD_RED}❌ Error saving plot: {e}{Colors.RESET}")
 
 if __name__ == "__main__":
     plot_all()
