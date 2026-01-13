@@ -16,3 +16,7 @@ This journal records critical UX and accessibility learnings for the HyFlow1D pr
 ## 2024-05-24 - Typo Tolerance in CLI
 **Learning:** Users frequently mistype short flags (e.g., `--outupt` vs `--output`). Implementing a simple "Did you mean?" suggestion system using Levenshtein distance significantly reduces friction and makes the tool feel more helpful rather than just rigid.
 **Action:** Implement fuzzy matching for unknown arguments in CLI entry points.
+
+## 2024-05-25 - Cross-Language CLI Consistency
+**Learning:** When a project uses multiple languages for its toolchain (e.g., C++ solver + Python visualizer), users expect a consistent visual language (colors, emoji use) and behavior (auto-detection of build artifacts) across all tools.
+**Action:** Ensure helper scripts implement the same `NO_COLOR` standards and success/error styling as the main application.
