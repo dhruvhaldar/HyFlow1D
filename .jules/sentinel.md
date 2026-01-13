@@ -26,3 +26,8 @@
 **Vulnerability:** The application accepted arbitrary file paths for the output directory (`-o`), allowing Path Traversal attacks (e.g., `-o ../etc`) which could lead to arbitrary file writes outside the intended directory.
 **Learning:** CLI tools often trust user input for file paths implicitly. Relying on the OS to handle permissions is insufficient defense-in-depth, especially if the tool might run with elevated privileges or in shared environments.
 **Prevention:** Explicitly validate all user-provided file paths. Reject paths containing directory traversal components (`..`) unless specifically required and authorized. Use `std::filesystem` to parse and inspect path components reliably.
+
+## 2025-01-22 - [Unsecured Helper Scripts]
+**Vulnerability:** The Python visualization script accepted arbitrary file paths with traversal ('..'), allowing arbitrary file read/write operations when used with crafted arguments.
+**Learning:** Security measures applied to the main application (C++ CLI) were not mirrored in auxiliary scripts, creating a weak link in the toolchain. Scripts are often overlooked in security reviews but can be vectors for local privilege escalation or data exfiltration if run by privileged users.
+**Prevention:** Apply the same input validation standards (like 'is_safe_path') to all components of the ecosystem, including scripts and tools.
