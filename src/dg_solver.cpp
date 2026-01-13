@@ -161,8 +161,21 @@ double DiscontinuousGalerkinSolver::evaluate_element(int element_idx, double xi)
             val += u[base_idx + k] * ((k % 2 == 0) ? 1.0 : -1.0); // P_k(-1) = (-1)^k
         }
     } else {
-        for (int k = 0; k < n_modes; ++k) {
-            val += u[base_idx + k] * numerics::legendre(k, xi);
+        // Optimization: Evaluate Legendre polynomials iteratively in O(N) instead of O(N^2)
+        double p_prev = 1.0; // P_0
+        if (n_modes > 0) val += u[base_idx] * p_prev;
+
+        if (n_modes > 1) {
+            double p_curr = xi; // P_1
+            val += u[base_idx + 1] * p_curr;
+
+            for (int k = 1; k < n_modes - 1; ++k) {
+                // Compute P_{k+1} using recurrence: (k+1)P_{k+1} = (2k+1)xP_k - kP_{k-1}
+                double p_next = ((2.0 * k + 1.0) * xi * p_curr - k * p_prev) / (k + 1.0);
+                val += u[base_idx + k + 1] * p_next;
+                p_prev = p_curr;
+                p_curr = p_next;
+            }
         }
     }
     return val;
@@ -171,12 +184,24 @@ double DiscontinuousGalerkinSolver::evaluate_element(int element_idx, double xi)
 namespace {
     template <int N>
     void compute_rhs_optimized(int n_elements,
-                               const double* u,
-                               double* rhs,
-                               const double* stiffness_matrix,
-                               const double* inv_mass_matrix,
+                               const double* __restrict__ u,
+                               double* __restrict__ rhs,
+                               const double* __restrict__ stiffness_matrix,
+                               const double* __restrict__ inv_mass_matrix,
                                double left_ghost,
                                double a) {
+        // Optimization: Hoist invariant data to stack to ensure register/L1 usage and avoid aliasing overhead
+        double local_inv_mass[N];
+        for (int k = 0; k < N; ++k) local_inv_mass[k] = inv_mass_matrix[k];
+
+        // Stiffness matrix size: sum(k=0..N-1) of k = N(N-1)/2
+        constexpr int stiffness_size = (N * (N - 1)) / 2;
+        // Handle N=1 case (size 0) by allocating at least 1 element to avoid VLA/size-0 issues
+        double local_stiffness[stiffness_size > 0 ? stiffness_size : 1];
+        if constexpr (stiffness_size > 0) {
+            for (int i = 0; i < stiffness_size; ++i) local_stiffness[i] = stiffness_matrix[i];
+        }
+
         double prev_boundary_val = left_ghost;
 
         for (int i = 0; i < n_elements; ++i) {
@@ -194,7 +219,7 @@ namespace {
             double flux_surf_left = a * u_left_boundary_val;
             double flux_surf_right = a * u_right_boundary_val;
 
-            const double* K_ptr = stiffness_matrix;
+            const double* K_ptr = local_stiffness;
             double* rhs_elem = &rhs[i * N];
             double sign = 1.0;
 
@@ -212,7 +237,7 @@ namespace {
 
                 double total_rhs = volume_int - (surf_right - surf_left);
 
-                rhs_elem[k] = total_rhs * inv_mass_matrix[k];
+                rhs_elem[k] = total_rhs * local_inv_mass[k];
 
                 // Optimization: Advance pointer by row length (k) for packed storage
                 K_ptr += k;
