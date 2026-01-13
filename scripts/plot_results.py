@@ -2,6 +2,7 @@ import sys
 import glob
 import os
 import argparse
+from pathlib import Path
 from itertools import cycle
 
 try:
@@ -13,6 +14,15 @@ except ImportError as e:
     print("\n💡 Please install them with:")
     print("   pip install matplotlib pandas\n")
     sys.exit(1)
+
+def is_safe_path(path_str):
+    if not path_str:
+        return False
+    path = Path(path_str)
+    for part in path.parts:
+        if part == "..":
+            return False
+    return True
 
 def plot_all():
     parser = argparse.ArgumentParser(
@@ -33,6 +43,15 @@ def plot_all():
     )
 
     args = parser.parse_args()
+
+    # Security: Validate paths
+    if args.input_dir and not is_safe_path(args.input_dir):
+        print("❌ Error: Invalid input directory. Path traversal ('..') is not allowed.")
+        sys.exit(1)
+
+    if not is_safe_path(args.output):
+        print("❌ Error: Invalid output filename. Path traversal ('..') is not allowed.")
+        sys.exit(1)
 
     # Determine search path
     if args.input_dir:
