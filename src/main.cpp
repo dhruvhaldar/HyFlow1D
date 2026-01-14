@@ -64,11 +64,14 @@ bool is_safe_path(const std::string& path_str) {
     return true;
 }
 
-void write_solution(const std::string& filename, const std::vector<std::pair<double, double>>& solution) {
+void write_solution(const std::string& filename, const std::vector<std::pair<double, double>>& solution, double time = -1.0) {
     std::ofstream outfile(filename);
     if (!outfile.is_open()) {
         std::cerr << "Error opening file: " << filename << std::endl;
         return;
+    }
+    if (time >= 0.0) {
+        outfile << "# t=" << time << "\n";
     }
     outfile << "x,u\n";
     for (const auto& p : solution) {
@@ -320,7 +323,7 @@ int main(int argc, char* argv[]) {
 
             if (step % output_interval == 0) {
                 std::string fname = output_dir + "/solution_" + std::to_string(step) + ".csv";
-                write_solution(fname, hybrid.get_solution());
+                write_solution(fname, hybrid.get_solution(), t);
                 if (verbose) {
                     std::cout << "Step " << step << ", t = " << t << std::endl;
                 }
@@ -348,7 +351,7 @@ int main(int argc, char* argv[]) {
         }
 
         // Final output
-        write_solution(output_dir + "/solution_final.csv", hybrid.get_solution());
+        write_solution(output_dir + "/solution_final.csv", hybrid.get_solution(), t_final);
 
         auto end_time = std::chrono::steady_clock::now();
         std::chrono::duration<double> total_elapsed = end_time - start_time;
