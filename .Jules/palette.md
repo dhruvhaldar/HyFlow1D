@@ -20,3 +20,7 @@ This journal records critical UX and accessibility learnings for the HyFlow1D pr
 ## 2024-05-25 - Cross-Language CLI Consistency
 **Learning:** When a project uses multiple languages for its toolchain (e.g., C++ solver + Python visualizer), users expect a consistent visual language (colors, emoji use) and behavior (auto-detection of build artifacts) across all tools.
 **Action:** Ensure helper scripts implement the same `NO_COLOR` standards and success/error styling as the main application.
+
+## 2024-05-26 - Metadata in Simulation Output
+**Learning:** Simulation users think in terms of physics time, not iteration steps. Abstract filenames (e.g., `step_100.csv`) forcing users to manually calculate time creates unnecessary cognitive load.
+**Action:** Embed critical metadata (like simulation time) directly into output file headers (e.g., as comments in CSV) to allow visualization tools to display meaningful labels automatically.

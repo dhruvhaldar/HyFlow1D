@@ -38,6 +38,17 @@ def is_safe_path(path_str):
             return False
     return True
 
+def get_time_from_file(filepath):
+    """Extracts time from the first line comment like '# t=0.123'."""
+    try:
+        with open(filepath, 'r') as f:
+            first_line = f.readline()
+            if first_line.startswith("# t="):
+                return float(first_line.strip().split('=')[1])
+    except Exception:
+        return None
+    return None
+
 def plot_all():
     parser = argparse.ArgumentParser(
         description="Visualize HyFlow1D simulation results.",
@@ -107,10 +118,22 @@ def plot_all():
     
     for f in files_to_plot:
         try:
-            data = pd.read_csv(f)
-            # Extract step number for label
+            # Check for time metadata
+            time_val = get_time_from_file(f)
+
+            data = pd.read_csv(f, comment='#')
+
+            # Extract step number for fallback/auxiliary label
             step_num = ''.join(filter(str.isdigit, os.path.basename(f)))
-            label = f"Step {step_num}" if step_num else os.path.basename(f)
+
+            if time_val is not None:
+                if step_num:
+                    label = f"t = {time_val:.2f} (Step {step_num})"
+                else:
+                    label = f"t = {time_val:.2f}"
+            else:
+                label = f"Step {step_num}" if step_num else os.path.basename(f)
+
             plt.plot(data['x'], data['u'], label=label, linestyle=next(line_styles), linewidth=2)
         except Exception as e:
             print(f"{Colors.YELLOW}⚠️  Warning: Could not read {f}: {e}{Colors.RESET}")
