@@ -1,10 +1,19 @@
 #include "fv_solver.hpp"
 #include <stdexcept>
+#include <string>
 
 void FiniteVolumeSolver::initialize(double start, double end, int n_elem) {
     if (n_elem <= 0) {
         throw std::invalid_argument("Number of elements must be positive.");
     }
+
+    // Security: Prevent Denial of Service (DoS) via excessive memory allocation.
+    // Limit to 50 million elements (approx 400MB per vector).
+    constexpr int MAX_ELEMENTS = 50'000'000;
+    if (n_elem > MAX_ELEMENTS) {
+         throw std::length_error("Number of elements exceeds security limit: " + std::to_string(MAX_ELEMENTS));
+    }
+
     if (start >= end) {
         throw std::invalid_argument("Domain start must be less than end.");
     }
