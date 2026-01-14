@@ -179,6 +179,13 @@ namespace {
                                double a) {
         double prev_boundary_val = left_ghost;
 
+        // Optimization: Precompute scaled inverse mass matrix
+        // This avoids multiplying by 'a' inside the inner loop for every term.
+        double scaled_inv_mass[N];
+        for (int k = 0; k < N; ++k) {
+            scaled_inv_mass[k] = inv_mass_matrix[k] * a;
+        }
+
         for (int i = 0; i < n_elements; ++i) {
             double u_left_boundary_val = prev_boundary_val;
 
@@ -191,8 +198,9 @@ namespace {
             }
             prev_boundary_val = u_right_boundary_val;
 
-            double flux_surf_left = a * u_left_boundary_val;
-            double flux_surf_right = a * u_right_boundary_val;
+            // Optimization: Defer multiplication by 'a' to the end via scaled_inv_mass
+            double val_surf_left = u_left_boundary_val;
+            double val_surf_right = u_right_boundary_val;
 
             const double* K_ptr = stiffness_matrix;
             double* rhs_elem = &rhs[i * N];
@@ -205,14 +213,14 @@ namespace {
                 for (int m = 0; m < k; ++m) {
                      volume_int += K_ptr[m] * u_elem[m];
                 }
-                volume_int *= a;
+                // Removed multiplication by a here
 
-                double surf_right = flux_surf_right;
-                double surf_left  = flux_surf_left * sign;
+                double surf_right = val_surf_right;
+                double surf_left  = val_surf_left * sign;
 
                 double total_rhs = volume_int - (surf_right - surf_left);
 
-                rhs_elem[k] = total_rhs * inv_mass_matrix[k];
+                rhs_elem[k] = total_rhs * scaled_inv_mass[k];
 
                 // Optimization: Advance pointer by row length (k) for packed storage
                 K_ptr += k;
