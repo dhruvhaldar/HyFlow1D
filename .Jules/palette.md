@@ -24,3 +24,11 @@ This journal records critical UX and accessibility learnings for the HyFlow1D pr
 ## 2024-05-26 - Metadata in Simulation Output
 **Learning:** Simulation users think in terms of physics time, not iteration steps. Abstract filenames (e.g., `step_100.csv`) forcing users to manually calculate time creates unnecessary cognitive load.
 **Action:** Embed critical metadata (like simulation time) directly into output file headers (e.g., as comments in CSV) to allow visualization tools to display meaningful labels automatically.
+
+## 2024-10-27 - Actionable Error States
+**Learning:** Error messages that only state the problem ("No files found") leave the user stranded. Providing the immediate next step ("Run ./hyflow1d") transforms a dead-end into a guided workflow.
+**Action:** Always pair error states with a "Tip" or "Suggested Action" that solves the problem.
+
+## 2024-10-27 - Process Transparency
+**Learning:** When a tool performs a batch operation (like plotting multiple files), summarizing the selection *before* execution gives the user confidence that the correct data is being processed, especially when sampling is involved.
+**Action:** Print a summary of selected inputs (filenames, timestamps) before starting long-running or batch operations.
