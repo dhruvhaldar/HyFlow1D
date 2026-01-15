@@ -81,6 +81,12 @@ void DiscontinuousGalerkinSolver::initialize(double start, double end, int n_ele
         throw std::overflow_error("Number of elements too large, would cause integer overflow.");
     }
 
+    // Security: Prevent Denial of Service (DoS) via excessive memory allocation.
+    // Limit to 50 million elements.
+    if (n_elem > MAX_ELEMENTS) {
+         throw std::length_error("Number of elements exceeds security limit: " + std::to_string(MAX_ELEMENTS));
+    }
+
     if (start >= end) {
         throw std::invalid_argument("Domain start must be less than end.");
     }
