@@ -7,6 +7,9 @@
 // Abstract base class for a solver (or domain partition)
 class Solver1D {
 public:
+    // Security: Global limit on elements to prevent DoS via memory exhaustion
+    static constexpr int MAX_ELEMENTS = 50'000'000;
+
     virtual ~Solver1D() = default;
 
     // Initialize with domain bounds and number of elements
