@@ -4,6 +4,12 @@
 #include <stdexcept>
 #include <limits>
 
+#if defined(_MSC_VER)
+#define RESTRICT __restrict
+#else
+#define RESTRICT __restrict__
+#endif
+
 DiscontinuousGalerkinSolver::DiscontinuousGalerkinSolver(int p_order) 
     : poly_order(p_order), n_modes(p_order + 1) {
     if (p_order < 0) {
@@ -171,10 +177,10 @@ double DiscontinuousGalerkinSolver::evaluate_element(int element_idx, double xi)
 namespace {
     template <int N>
     void compute_rhs_optimized(int n_elements,
-                               const double* u,
-                               double* rhs,
-                               const double* stiffness_matrix,
-                               const double* inv_mass_matrix,
+                               const double* RESTRICT u,
+                               double* RESTRICT rhs,
+                               const double* RESTRICT stiffness_matrix,
+                               const double* RESTRICT inv_mass_matrix,
                                double left_ghost,
                                double a) {
         double prev_boundary_val = left_ghost;
@@ -185,6 +191,14 @@ namespace {
         for (int k = 0; k < N; ++k) {
             scaled_inv_mass[k] = inv_mass_matrix[k] * a;
         }
+
+        // Optimization: Copy stiffness matrix to stack to ensure fast access and help compiler with aliasing.
+        // Size is N*(N-1)/2. For N=4, size is 6.
+        constexpr int K_size = (N * (N - 1) / 2);
+        // Handle N=1 where K_size is 0.
+        constexpr int local_K_size = (K_size > 0) ? K_size : 1;
+        double local_K[local_K_size];
+        for (int i = 0; i < K_size; ++i) local_K[i] = stiffness_matrix[i];
 
         for (int i = 0; i < n_elements; ++i) {
             double u_left_boundary_val = prev_boundary_val;
@@ -202,7 +216,7 @@ namespace {
             double val_surf_left = u_left_boundary_val;
             double val_surf_right = u_right_boundary_val;
 
-            const double* K_ptr = stiffness_matrix;
+            const double* K_ptr = local_K;
             double* rhs_elem = &rhs[i * N];
             double sign = 1.0;
 
