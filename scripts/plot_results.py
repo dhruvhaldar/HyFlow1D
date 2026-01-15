@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import sys
 import glob
 import os
@@ -99,6 +100,8 @@ def plot_all():
     if not files:
         print(f"{Colors.BOLD_RED}❌ No solution files found in: {display_dir}{Colors.RESET}")
         print(f"   (Looking for 'solution_*.csv')")
+        print(f"\n{Colors.YELLOW}💡 Tip: Run the simulation first to generate results:{Colors.RESET}")
+        print(f"   ./hyflow1d  (or build/hyflow1d)")
         return
 
     print(f"{Colors.BOLD}📊 Found {Colors.BLUE}{len(files)}{Colors.RESET}{Colors.BOLD} solution files in '{display_dir}'{Colors.RESET}")
@@ -110,6 +113,14 @@ def plot_all():
         files_to_plot = [files[i] for i in indices]
     else:
         files_to_plot = files
+
+    # UX: List the specific snapshots being plotted so the user knows what they are looking at
+    print(f"{Colors.BOLD}🎨 Plotting {len(files_to_plot)} snapshots:{Colors.RESET}")
+    for f in files_to_plot:
+        t_val = get_time_from_file(f)
+        fname = os.path.basename(f)
+        t_str = f"t={t_val:.4f}s" if t_val is not None else "t=?"
+        print(f"   • {Colors.BLUE}{fname:<20}{Colors.RESET} ({t_str})")
 
     plt.figure(figsize=(10, 6))
 
