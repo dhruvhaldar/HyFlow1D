@@ -258,6 +258,23 @@ int main(int argc, char* argv[]) {
                 // Added nofollow to prevent following symlinks if they are somehow introduced.
                 fs::permissions(output_dir, fs::perms::owner_all, fs::perm_options::replace | fs::perm_options::nofollow);
             }
+        } else {
+            // Palette UX: Warn if output directory contains previous results
+            // This prevents confusion when new results are mixed with old ones (e.g. fewer steps)
+            bool has_solution_files = false;
+            for (const auto& entry : fs::directory_iterator(output_dir)) {
+                if (entry.is_regular_file()) {
+                    std::string fname = entry.path().filename().string();
+                    if (fname.rfind("solution_", 0) == 0 && entry.path().extension() == ".csv") {
+                        has_solution_files = true;
+                        break;
+                    }
+                }
+            }
+            if (has_solution_files) {
+                 std::cout << Color::Yellow << "⚠️  Warning: Output directory '" << output_dir << "' contains existing solution files.\n"
+                           << "    New results may mix with old ones. Consider cleaning it first." << Color::Reset << "\n" << std::endl;
+            }
         }
 
         // Print Start Message
@@ -303,6 +320,8 @@ int main(int argc, char* argv[]) {
 
         // Print Configuration Summary
         std::cout << "\n" << Color::Bold << "Simulation Configuration:" << Color::Reset << "\n"
+                  << "  " << Color::Blue << "Domain:      " << Color::Reset
+                  << "[0.0] " << "|---FV---|" << " [0.5] " << "|---DG---|" << " [1.0]\n"
                   << "  " << Color::Blue << "FV Cells:    " << Color::Reset << n_fv << "\n"
                   << "  " << Color::Blue << "DG Elements: " << Color::Reset << n_dg << " (Order P=" << p_order << ")\n"
                   << "  " << Color::Blue << "Time:        " << Color::Reset << "0.0 -> " << t_final << "\n"
