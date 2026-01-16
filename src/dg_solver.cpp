@@ -209,42 +209,46 @@ namespace {
         for (int i = 0; i < n_elements; ++i) {
             double u_left_boundary_val = prev_boundary_val;
 
+            // Optimization: Load u into local registers/stack to avoid repeated memory access.
+            // Also compute u_right_boundary_val during the load loop.
+            double u_local[N];
             double u_right_boundary_val = 0.0;
             const double* u_elem = &u[i * N];
 
-            // Unrolled loop for boundary value
             for (int k = 0; k < N; ++k) {
-                 u_right_boundary_val += u_elem[k];
+                 double val = u_elem[k];
+                 u_local[k] = val;
+                 u_right_boundary_val += val;
             }
             prev_boundary_val = u_right_boundary_val;
 
-            // Optimization: Defer multiplication by 'a' to the end via scaled_inv_mass
+            // Optimization: Pre-calculate surface terms to avoid branches/mults in inner loop
             double val_surf_left = u_left_boundary_val;
             double val_surf_right = u_right_boundary_val;
 
+            // For P_k(-1) = (-1)^k. Even k: +1, Odd k: -1.
+            // Even k: surf_left term is val_surf_left * 1. Total = - (right - left) = -right + left
+            // Odd k: surf_left term is val_surf_left * -1. Total = - (right - (-left)) = -right - left
+            double surf_term_even = val_surf_right - val_surf_left;
+            double surf_term_odd  = val_surf_right + val_surf_left;
+
             const double* K_ptr = local_K;
             double* rhs_elem = &rhs[i * N];
-            double sign = 1.0;
 
             for (int k = 0; k < N; ++k) {
                 double volume_int = 0.0;
                 // Inner loop m < k matches the packed row length of k.
-                // Valid indices for K_ptr are 0 to k-1.
+                // Use u_local instead of u_elem pointer.
                 for (int m = 0; m < k; ++m) {
-                     volume_int += K_ptr[m] * u_elem[m];
+                     volume_int += K_ptr[m] * u_local[m];
                 }
-                // Removed multiplication by a here
 
-                double surf_right = val_surf_right;
-                double surf_left  = val_surf_left * sign;
-
-                double total_rhs = volume_int - (surf_right - surf_left);
+                double total_rhs = volume_int - ((k % 2 == 0) ? surf_term_even : surf_term_odd);
 
                 rhs_elem[k] = total_rhs * scaled_inv_mass[k];
 
                 // Optimization: Advance pointer by row length (k) for packed storage
                 K_ptr += k;
-                sign = -sign;
             }
         }
     }
