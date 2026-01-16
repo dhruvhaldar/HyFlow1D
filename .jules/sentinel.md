@@ -31,3 +31,8 @@
 **Vulnerability:** The Python visualization script accepted arbitrary file paths with traversal ('..'), allowing arbitrary file read/write operations when used with crafted arguments.
 **Learning:** Security measures applied to the main application (C++ CLI) were not mirrored in auxiliary scripts, creating a weak link in the toolchain. Scripts are often overlooked in security reviews but can be vectors for local privilege escalation or data exfiltration if run by privileged users.
 **Prevention:** Apply the same input validation standards (like 'is_safe_path') to all components of the ecosystem, including scripts and tools.
+
+## 2025-01-22 - [Symlink Attack Prevention in Scripts]
+**Vulnerability:** The `plot_results.py` script relied on standard file I/O (`plt.savefig`) which follows symbolic links. This allowed an attacker to create a symlink (e.g., `output.png -> /etc/passwd`) and trick the script into overwriting sensitive files when run by a privileged user.
+**Learning:** Standard file I/O libraries (like `open`, `matplotlib`, `pandas`) typically follow symlinks by default. Validating the path string alone (e.g., for `..`) is insufficient against symlink attacks.
+**Prevention:** Explicitly check `Path(path).is_symlink()` before writing to output files in CLI tools. Refuse to write if a symlink is detected.

@@ -79,6 +79,12 @@ def plot_all():
         print("❌ Error: Invalid output filename. Path traversal ('..') is not allowed.")
         sys.exit(1)
 
+    # Security: Prevent overwriting symbolic links to prevent Symlink Attacks
+    if Path(args.output).is_symlink():
+        print(f"{Colors.BOLD_RED}❌ Error: Output file '{args.output}' is a symbolic link.{Colors.RESET}")
+        print(f"   Refusing to overwrite symbolic links to prevent security risks.")
+        sys.exit(1)
+
     # Determine search path
     if args.input_dir:
         search_path = os.path.join(args.input_dir, "solution_*.csv")
