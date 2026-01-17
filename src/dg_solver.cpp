@@ -71,9 +71,6 @@ DiscontinuousGalerkinSolver::DiscontinuousGalerkinSolver(int p_order)
         }
     }
 
-    // Initialize scratch space
-    volume_ints_scratch.resize(n_modes);
-
     is_initialized = false;
 }
 
@@ -232,23 +229,53 @@ namespace {
             double surf_term_even = val_surf_right - val_surf_left;
             double surf_term_odd  = val_surf_right + val_surf_left;
 
-            const double* K_ptr = local_K;
             double* rhs_elem = &rhs[i * N];
 
-            for (int k = 0; k < N; ++k) {
-                double volume_int = 0.0;
-                // Inner loop m < k matches the packed row length of k.
-                // Use u_local instead of u_elem pointer.
-                for (int m = 0; m < k; ++m) {
-                     volume_int += K_ptr[m] * u_local[m];
+            if constexpr (N <= 4) {
+                // Optimization: Fully unroll volume integral calculation and RHS assembly using if constexpr.
+                // This eliminates loop overhead, complex pointer arithmetic (K_ptr), and temporary arrays.
+
+                // k=0 (Always present)
+                {
+                    double vol = 0.0;
+                    double total_rhs = vol - surf_term_even;
+                    rhs_elem[0] = total_rhs * scaled_inv_mass[0];
                 }
 
-                double total_rhs = volume_int - ((k % 2 == 0) ? surf_term_even : surf_term_odd);
+                if constexpr (N >= 2) {
+                     // k=1, m=0
+                     double vol = local_K[0] * u_local[0];
+                     double total_rhs = vol - surf_term_odd;
+                     rhs_elem[1] = total_rhs * scaled_inv_mass[1];
+                }
+                if constexpr (N >= 3) {
+                     // k=2, m=0,1
+                     double vol = local_K[1] * u_local[0] + local_K[2] * u_local[1];
+                     double total_rhs = vol - surf_term_even;
+                     rhs_elem[2] = total_rhs * scaled_inv_mass[2];
+                }
+                if constexpr (N >= 4) {
+                     // k=3, m=0,1,2
+                     double vol = local_K[3] * u_local[0] + local_K[4] * u_local[1] + local_K[5] * u_local[2];
+                     double total_rhs = vol - surf_term_odd;
+                     rhs_elem[3] = total_rhs * scaled_inv_mass[3];
+                }
+            } else {
+                // Generic fallback for N > 4
+                const double* K_ptr = local_K;
+                for (int k = 0; k < N; ++k) {
+                    double volume_int = 0.0;
+                    // Inner loop m < k matches the packed row length of k.
+                    for (int m = 0; m < k; ++m) {
+                         volume_int += K_ptr[m] * u_local[m];
+                    }
 
-                rhs_elem[k] = total_rhs * scaled_inv_mass[k];
+                    double total_rhs = volume_int - ((k % 2 == 0) ? surf_term_even : surf_term_odd);
+                    rhs_elem[k] = total_rhs * scaled_inv_mass[k];
 
-                // Optimization: Advance pointer by row length (k) for packed storage
-                K_ptr += k;
+                    // Advance pointer by row length (k) for packed storage
+                    K_ptr += k;
+                }
             }
         }
     }

@@ -41,9 +41,6 @@ private:
     double left_ghost;
     double right_ghost;
 
-    // Scratch space to avoid repeated allocations
-    std::vector<double> volume_ints_scratch;
-
     // Security: Track initialization state to prevent usage of uninitialized memory
     bool is_initialized;
 
