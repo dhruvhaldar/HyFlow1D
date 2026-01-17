@@ -36,3 +36,8 @@
 **Vulnerability:** The `plot_results.py` script relied on standard file I/O (`plt.savefig`) which follows symbolic links. This allowed an attacker to create a symlink (e.g., `output.png -> /etc/passwd`) and trick the script into overwriting sensitive files when run by a privileged user.
 **Learning:** Standard file I/O libraries (like `open`, `matplotlib`, `pandas`) typically follow symlinks by default. Validating the path string alone (e.g., for `..`) is insufficient against symlink attacks.
 **Prevention:** Explicitly check `Path(path).is_symlink()` before writing to output files in CLI tools. Refuse to write if a symlink is detected.
+
+## 2025-01-22 - [Symlink Overwrite in C++]
+**Vulnerability:** The C++ `std::ofstream` follows symbolic links by default. Writing to a user-controlled path (even inside a safe directory) allowed overwriting arbitrary files via pre-created symlinks.
+**Learning:** Checking directory safety ('..') is not enough. File writers must explicitly check for symlinks if the output location could be tampered with. Standard C++ streams lack `O_NOFOLLOW`.
+**Prevention:** Use `std::filesystem::is_symlink()` before opening files for writing in security-sensitive contexts, while acknowledging the residual TOCTOU risk.

@@ -65,6 +65,18 @@ bool is_safe_path(const std::string& path_str) {
 }
 
 void write_solution(const std::string& filename, const std::vector<std::pair<double, double>>& solution, double time = -1.0) {
+    // Security: Prevent Symlink Attack (Arbitrary File Overwrite)
+    // Check if the output file is a symlink before opening it.
+    // Note: This check mitigates "pre-planted" symlink attacks. A TOCTOU race condition
+    // still exists if a symlink is created between this check and the open call,
+    // but this requires precise timing from an attacker.
+    std::filesystem::path path(filename);
+    if (std::filesystem::is_symlink(path)) {
+        std::cerr << Color::BoldRed << "Error: Output file '" << filename << "' is a symbolic link." << Color::Reset << std::endl;
+        std::cerr << "Refusing to overwrite symbolic links to prevent security risks." << std::endl;
+        return;
+    }
+
     std::ofstream outfile(filename);
     if (!outfile.is_open()) {
         std::cerr << "Error opening file: " << filename << std::endl;
