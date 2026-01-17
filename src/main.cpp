@@ -86,7 +86,8 @@ void show_usage(const char* prog_name) {
               << "  " << Color::Bold << "Options:" << Color::Reset << "\n"
               << "    " << Color::Yellow << "-h, --help" << Color::Reset << "      Show this help message\n"
               << "    " << Color::Yellow << "-v, --verbose" << Color::Reset << "   Show detailed step output (disables progress bar)\n"
-              << "    " << Color::Yellow << "-o, --output" << Color::Reset << "    Specify output directory (default: output)\n\n"
+              << "    " << Color::Yellow << "-o, --output" << Color::Reset << "    Specify output directory (default: output)\n"
+              << "    " << Color::Yellow << "-c, --clean" << Color::Reset << "     Clean output directory before running\n\n"
               << "  " << Color::Bold << "Simulation Details (Hardcoded):" << Color::Reset << "\n"
               << "    Domain: [0, 1] (FV: [0, 0.5], DG: [0.5, 1])\n"
               << "    Config: 50 FV cells, 10 DG elements (P=3)\n"
@@ -119,7 +120,7 @@ int levenshtein_distance(std::string_view s1, std::string_view s2) {
 }
 
 void suggest_flag(const std::string& invalid_flag) {
-    const std::vector<std::string> valid_flags = {"--help", "-h", "--verbose", "-v", "--output", "-o"};
+    const std::vector<std::string> valid_flags = {"--help", "-h", "--verbose", "-v", "--output", "-o", "--clean", "-c"};
     std::string best_match;
     int min_dist = 100;
 
@@ -180,6 +181,7 @@ int main(int argc, char* argv[]) {
     try {
         namespace fs = std::filesystem;
         bool verbose = false;
+        bool clean_output = false;
         std::string output_dir = "output";
 
         // Detect TTY to auto-configure UX. Default to true to be safe (fail-open).
@@ -226,6 +228,8 @@ int main(int argc, char* argv[]) {
                     std::cerr << "Error: Output directory not specified after " << argv[i] << std::endl;
                     return 1;
                 }
+            } else if (strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--clean") == 0) {
+                clean_output = true;
             } else {
                 // Check if it looks like a flag
                 if (argv[i][0] == '-') {
@@ -262,18 +266,29 @@ int main(int argc, char* argv[]) {
             // Palette UX: Warn if output directory contains previous results
             // This prevents confusion when new results are mixed with old ones (e.g. fewer steps)
             bool has_solution_files = false;
+            std::vector<fs::path> files_to_remove;
+
             for (const auto& entry : fs::directory_iterator(output_dir)) {
                 if (entry.is_regular_file()) {
                     std::string fname = entry.path().filename().string();
                     if (fname.rfind("solution_", 0) == 0 && entry.path().extension() == ".csv") {
                         has_solution_files = true;
-                        break;
+                        if (clean_output) {
+                            files_to_remove.push_back(entry.path());
+                        }
                     }
                 }
             }
-            if (has_solution_files) {
+
+            if (clean_output && has_solution_files) {
+                // Perform cleanup
+                for (const auto& p : files_to_remove) {
+                    fs::remove(p);
+                }
+                std::cout << Color::Blue << "ℹ️  Cleaned " << files_to_remove.size() << " file(s) from '" << output_dir << "'." << Color::Reset << std::endl;
+            } else if (has_solution_files) {
                  std::cout << Color::Yellow << "⚠️  Warning: Output directory '" << output_dir << "' contains existing solution files.\n"
-                           << "    New results may mix with old ones. Consider cleaning it first." << Color::Reset << "\n" << std::endl;
+                           << "    New results may mix with old ones. Use " << Color::Bold << "--clean" << Color::Reset << Color::Yellow << " to remove them." << Color::Reset << "\n" << std::endl;
             }
         }
 
