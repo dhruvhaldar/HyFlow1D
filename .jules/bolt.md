@@ -5,3 +5,7 @@
 ## 2024-05-24 - Stack Allocation and Restrict Pointers
 **Learning:** Copying small invariant matrices to the stack and using `__restrict__` qualifiers significantly helps the compiler optimize inner loops, likely by reducing aliasing assumptions and improving register allocation. In this case, it yielded a ~17% speedup in the DG solver's RHS computation.
 **Action:** For critical loops involving small, repeated matrix ops, consider explicit stack copies and strict aliasing hints.
+
+## 2024-05-24 - Fully Unrolling Small Matrix Ops
+**Learning:** For small fixed sizes (e.g., N=1..4), fully unrolling loops using `if constexpr` and scalar variables (avoiding temporary arrays) eliminates loop overhead and allows better instruction scheduling. This yielded a ~27% speedup (904k -> 1.15M ops/s) by removing complex pointer arithmetic and dependency chains in the hot path.
+**Action:** When N is small and known at compile time, prefer full unrolling with `if constexpr` over loops, even if the loop count is small.
