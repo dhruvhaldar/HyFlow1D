@@ -3,6 +3,7 @@ import sys
 import glob
 import os
 import argparse
+import difflib
 from pathlib import Path
 from itertools import cycle
 
@@ -19,6 +20,30 @@ class Colors:
 
     BOLD_RED     = "\033[1;31m" if _enabled else ""
     BOLD_GREEN   = "\033[1;32m" if _enabled else ""
+
+# Palette: Smart Argument Parser for "Did you mean?" suggestions
+class SmartArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        sys.stderr.write(f"{Colors.BOLD_RED}❌ Error: {message}{Colors.RESET}\n")
+
+        if "unrecognized arguments" in message:
+            # Get all valid flags from the parser actions
+            valid_flags = []
+            for action in self._actions:
+                valid_flags.extend(action.option_strings)
+
+            # Check arguments provided in sys.argv for potential typos
+            # Note: This is a heuristic scan of sys.argv.
+            for arg in sys.argv[1:]:
+                if arg.startswith('-') and arg not in valid_flags:
+                    # It's an unknown flag, try to find a match
+                    matches = difflib.get_close_matches(arg, valid_flags, n=1, cutoff=0.6)
+                    if matches:
+                        sys.stderr.write(f"       Did you mean '{Colors.YELLOW}{matches[0]}{Colors.RESET}'?\n")
+
+        print(f"\n{Colors.BOLD}Usage:{Colors.RESET}")
+        self.print_usage(sys.stderr)
+        sys.exit(2)
 
 try:
     import matplotlib.pyplot as plt
@@ -51,7 +76,7 @@ def get_time_from_file(filepath):
     return None
 
 def plot_all():
-    parser = argparse.ArgumentParser(
+    parser = SmartArgumentParser(
         description="Visualize HyFlow1D simulation results.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
