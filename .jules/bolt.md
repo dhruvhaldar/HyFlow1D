@@ -9,3 +9,7 @@
 ## 2024-05-24 - Fully Unrolling Small Matrix Ops
 **Learning:** For small fixed sizes (e.g., N=1..4), fully unrolling loops using `if constexpr` and scalar variables (avoiding temporary arrays) eliminates loop overhead and allows better instruction scheduling. This yielded a ~27% speedup (904k -> 1.15M ops/s) by removing complex pointer arithmetic and dependency chains in the hot path.
 **Action:** When N is small and known at compile time, prefer full unrolling with `if constexpr` over loops, even if the loop count is small.
+
+## 2024-05-25 - FV Solver Branch Elimination
+**Learning:** In the Finite Volume solver, the `if (i==0)` check inside the loop for boundary conditions inhibited vectorization and added branching overhead. Peeling the first iteration and precalculating the coefficient (`-a/dx`) improved throughput by ~25% (7.9k -> 9.9k ops/s).
+**Action:** When handling boundary conditions in tight loops, peel the boundary iterations to allow the main loop to run without conditionals, enabling better compiler optimization.

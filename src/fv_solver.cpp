@@ -44,15 +44,23 @@ void FiniteVolumeSolver::compute_rhs(double /*t*/, double a) {
     
     // We assume a > 0 for this implementation
     
-    for (int i = 0; i < n_elements; ++i) {
-        double u_left = (i == 0) ? left_ghost : u[i - 1];
-        // Flux at left face (i-1/2) is a * u_left
-        // Flux at right face (i+1/2) is a * u[i]
-        
-        double flux_in = a * u_left;
-        double flux_out = a * u[i];
-        
-        rhs[i] = -(flux_out - flux_in) / dx;
+    // Safety check for empty domain (although initialize() prevents n_elements <= 0, this is defensive)
+    if (n_elements == 0) return;
+
+    double coeff = -a / dx;
+
+    // Optimization: Peel first iteration to remove branch
+    // i = 0
+    {
+        double u_left = left_ghost;
+        double u_current = u[0];
+        rhs[0] = coeff * (u_current - u_left);
+    }
+
+    // Optimization: Loop starts from 1, no branching.
+    // rhs[i] = -a/dx * (u[i] - u[i-1]) = coeff * (u[i] - u[i-1])
+    for (int i = 1; i < n_elements; ++i) {
+        rhs[i] = coeff * (u[i] - u[i - 1]);
     }
 }
 
