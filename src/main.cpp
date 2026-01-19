@@ -90,6 +90,17 @@ void write_solution(const std::string& filename, const std::vector<std::pair<dou
         outfile << p.first << "," << p.second << "\n";
     }
     outfile.close();
+
+    // Security: Restrict file permissions to owner only (0600)
+    // This ensures sensitive simulation data is not readable by others on shared systems.
+    try {
+        std::filesystem::permissions(filename,
+            std::filesystem::perms::owner_read | std::filesystem::perms::owner_write,
+            std::filesystem::perm_options::replace | std::filesystem::perm_options::nofollow);
+    } catch (const std::filesystem::filesystem_error& e) {
+        // Log warning but don't crash simulation
+        std::cerr << Color::Yellow << "Warning: Failed to set secure permissions on '" << filename << "': " << e.what() << Color::Reset << std::endl;
+    }
 }
 
 void show_usage(const char* prog_name) {
