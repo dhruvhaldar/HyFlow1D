@@ -32,3 +32,7 @@ This journal records critical UX and accessibility learnings for the HyFlow1D pr
 ## 2024-10-27 - Process Transparency
 **Learning:** When a tool performs a batch operation (like plotting multiple files), summarizing the selection *before* execution gives the user confidence that the correct data is being processed, especially when sampling is involved.
 **Action:** Print a summary of selected inputs (filenames, timestamps) before starting long-running or batch operations.
+
+## 2024-10-27 - Graceful Interrupts
+**Learning:** Users often interrupt long-running simulations (Ctrl+C) to check partial results, not just to abort. Treating `SIGINT` as a "Pause" event with helpful context (step number, saved files) and next steps (visualization command) transforms a crash into a useful workflow.
+**Action:** Catch `SIGINT`, print a "Paused" status to `stderr`, and provide the visualization command for partial results.
