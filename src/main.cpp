@@ -362,7 +362,20 @@ int main(int argc, char* argv[]) {
         while (t < t_final) {
             if (g_signal_status == SIGINT) {
                 std::cout << Color::Reset << "\n";
-                std::cerr << Color::BoldRed << "\n[!] Simulation interrupted by user." << Color::Reset << std::endl;
+                std::cerr << Color::Yellow << "\n[!] Simulation paused by user." << Color::Reset << std::endl;
+                std::cerr << "    Stopped at step " << step << " (t=" << t << ")" << std::endl;
+                std::cerr << "    Partial results saved in " << Color::Bold << output_dir << "/" << Color::Reset << std::endl;
+
+                // Palette UX: Suggest visualization for partial results
+                std::string script_path = "scripts/plot_results.py";
+                if (!fs::exists(script_path) && fs::exists("../scripts/plot_results.py")) {
+                    script_path = "../scripts/plot_results.py";
+                }
+                std::string viz_cmd = "python3 " + script_path;
+                if (output_dir != "output") viz_cmd += " " + output_dir;
+
+                std::cerr << "Visualize with: " << Color::Yellow << viz_cmd << Color::Reset << std::endl;
+
                 // Break loop to allow RAII cleanup (e.g. file buffers, solvers)
                 return 130;
             }
