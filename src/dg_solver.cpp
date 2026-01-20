@@ -170,8 +170,23 @@ double DiscontinuousGalerkinSolver::evaluate_element(int element_idx, double xi)
             val += u[base_idx + k] * ((k % 2 == 0) ? 1.0 : -1.0); // P_k(-1) = (-1)^k
         }
     } else {
-        for (int k = 0; k < n_modes; ++k) {
-            val += u[base_idx + k] * numerics::legendre(k, xi);
+        // Optimization: Use recurrence relation to evaluate all P_k(xi) in one pass O(N).
+        // Avoiding repetitive calls to numerics::legendre reduces complexity from O(N^2) to O(N).
+
+        double p_prev = 1.0; // P_0(xi)
+        double p_curr = xi;  // P_1(xi)
+
+        if (n_modes > 0) val += u[base_idx] * p_prev;
+        if (n_modes > 1) val += u[base_idx + 1] * p_curr;
+
+        for (int k = 2; k < n_modes; ++k) {
+            // Recurrence: k P_k = (2k-1) x P_{k-1} - (k-1) P_{k-2}
+            double k_d = static_cast<double>(k);
+            double p_next = ((2.0 * k_d - 1.0) * xi * p_curr - (k_d - 1.0) * p_prev) / k_d;
+
+            val += u[base_idx + k] * p_next;
+            p_prev = p_curr;
+            p_curr = p_next;
         }
     }
     return val;
