@@ -147,24 +147,33 @@ def plot_all():
 
     # UX: List the specific snapshots being plotted so the user knows what they are looking at
     print(f"{Colors.BOLD}🎨 Plotting {len(files_to_plot)} snapshots:{Colors.RESET}")
+
+    loaded_data = []
     for f in files_to_plot:
         t_val = get_time_from_file(f)
         fname = os.path.basename(f)
         t_str = f"t={t_val:.4f}s" if t_val is not None else "t=?"
-        print(f"   • {Colors.BLUE}{fname:<20}{Colors.RESET} ({t_str})")
+
+        try:
+            df = pd.read_csv(f, comment='#')
+            min_u, max_u = df['u'].min(), df['u'].max()
+            stats = f"[min: {min_u:+.2f}, max: {max_u:+.2f}]"
+            loaded_data.append((f, df, t_val))
+            print(f"   • {Colors.BLUE}{fname:<20}{Colors.RESET} ({t_str}) {Colors.YELLOW}{stats}{Colors.RESET}")
+        except Exception as e:
+            print(f"   • {Colors.BLUE}{fname:<20}{Colors.RESET} ({t_str}) {Colors.RED}[read error]{Colors.RESET}")
+            loaded_data.append((f, None, t_val))
 
     plt.figure(figsize=(10, 6))
 
     # Cycle through line styles for better accessibility (colorblind friendly)
     line_styles = cycle(['-', '--', '-.', ':'])
     
-    for f in files_to_plot:
+    for f, data, time_val in loaded_data:
+        if data is None:
+            continue
+
         try:
-            # Check for time metadata
-            time_val = get_time_from_file(f)
-
-            data = pd.read_csv(f, comment='#')
-
             # Extract step number for fallback/auxiliary label
             step_num = ''.join(filter(str.isdigit, os.path.basename(f)))
 
@@ -178,7 +187,7 @@ def plot_all():
 
             plt.plot(data['x'], data['u'], label=label, linestyle=next(line_styles), linewidth=2)
         except Exception as e:
-            print(f"{Colors.YELLOW}⚠️  Warning: Could not read {f}: {e}{Colors.RESET}")
+            print(f"{Colors.YELLOW}⚠️  Warning: Could not plot {f}: {e}{Colors.RESET}")
         
     plt.axvline(x=0.5, color='gray', linestyle='--', alpha=0.7, label='Interface (FV | DG)')
     plt.xlabel('Position (x)')

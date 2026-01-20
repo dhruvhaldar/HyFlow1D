@@ -36,3 +36,7 @@ This journal records critical UX and accessibility learnings for the HyFlow1D pr
 ## 2024-10-27 - Graceful Interrupts
 **Learning:** Users often interrupt long-running simulations (Ctrl+C) to check partial results, not just to abort. Treating `SIGINT` as a "Pause" event with helpful context (step number, saved files) and next steps (visualization command) transforms a crash into a useful workflow.
 **Action:** Catch `SIGINT`, print a "Paused" status to `stderr`, and provide the visualization command for partial results.
+
+## 2024-10-28 - Data at a Glance
+**Learning:** Visualization scripts often hide the actual data values behind the image. Providing a textual summary (e.g., min/max range) alongside the plot generation gives users immediate quantitative insight without needing to open the image or write custom analysis code.
+**Action:** Include key statistics (min/max, mean, etc.) in the console output of visualization tools.
