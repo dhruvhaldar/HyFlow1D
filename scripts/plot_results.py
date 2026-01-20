@@ -187,11 +187,28 @@ def plot_all():
     plt.legend()
     plt.grid(True, alpha=0.3)
 
+    # Security: Ensure sensitive data visualization is protected
+    # Set umask to 0o177 to ensure the file is created with 0600 permissions (rw-------)
+    # We save the old umask to restore it later.
+    # 0o177 masks group/other rwx and user x.
+    old_umask = os.umask(0o177)
     try:
         plt.savefig(args.output, dpi=150)
+
+        # Explicitly enforce 0600 permissions as a second layer of defense (Defense in Depth)
+        # This ensures that even if umask was somehow ineffective, we restrict access.
+        try:
+            os.chmod(args.output, 0o600)
+        except OSError as e:
+             # If we don't own the file (but could write to it), chmod might fail.
+             print(f"{Colors.YELLOW}⚠️  Warning: Could not set secure permissions (0600) on '{args.output}': {e}{Colors.RESET}")
+
         print(f"{Colors.BOLD_GREEN}✅ Plot saved to: {Colors.RESET}{Colors.BOLD}{os.path.abspath(args.output)}{Colors.RESET}")
     except Exception as e:
         print(f"{Colors.BOLD_RED}❌ Error saving plot: {e}{Colors.RESET}")
+    finally:
+        # Always restore the original umask
+        os.umask(old_umask)
 
 if __name__ == "__main__":
     plot_all()
