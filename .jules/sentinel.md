@@ -41,3 +41,8 @@
 **Vulnerability:** The C++ `std::ofstream` follows symbolic links by default. Writing to a user-controlled path (even inside a safe directory) allowed overwriting arbitrary files via pre-created symlinks.
 **Learning:** Checking directory safety ('..') is not enough. File writers must explicitly check for symlinks if the output location could be tampered with. Standard C++ streams lack `O_NOFOLLOW`.
 **Prevention:** Use `std::filesystem::is_symlink()` before opening files for writing in security-sensitive contexts, while acknowledging the residual TOCTOU risk.
+
+## 2025-01-22 - [Insecure Default Permissions Race Condition]
+**Vulnerability:** Files and directories were created with default process permissions (often world-readable) before being restricted to owner-only using `fs::permissions`. This created a race condition where sensitive data was briefly exposed.
+**Learning:** Post-creation permission hardening (e.g., `chmod` after `open`) is insufficient for confidentiality because it is not atomic. The default creation mask (`umask`) determines the initial permissions.
+**Prevention:** Set the process `umask` (e.g., `0077`) at application startup to ensuring all subsequently created files and directories are secure by default (atomic security).
