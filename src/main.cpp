@@ -359,13 +359,14 @@ int main(int argc, char* argv[]) {
         // Print Configuration Summary
         std::cout << "\n" << Color::Bold << "Simulation Configuration:" << Color::Reset << "\n"
                   << "  " << Color::Blue << "Domain:      " << Color::Reset
-                  << "[0.0] " << "|---FV---|" << " [0.5] " << "|---DG---|" << " [1.0]\n"
-                  << "  " << Color::Blue << "FV Cells:    " << Color::Reset << n_fv << "\n"
-                  << "  " << Color::Blue << "DG Elements: " << Color::Reset << n_dg << " (Order P=" << p_order << ")\n"
-                  << "  " << Color::Blue << "Time:        " << Color::Reset << "0.0 -> " << t_final << "\n"
-                  << "  " << Color::Blue << "CFL:         " << Color::Reset << cfl << "\n"
-                  << "  " << Color::Yellow << "dt:          " << Color::Reset << dt << "\n"
-                  << "  " << Color::Yellow << "Total Steps: " << Color::Reset << total_steps << "\n"
+                  << "[" << std::fixed << std::setprecision(2) << x_start << "] |---FV---| ["
+                  << x_interface << "] |---DG---| [" << x_end << "]\n"
+                  << "  " << Color::Blue << "FV Cells:    " << Color::Reset << Color::Bold << n_fv << Color::Reset << "\n"
+                  << "  " << Color::Blue << "DG Elements: " << Color::Reset << Color::Bold << n_dg << Color::Reset << " (Order P=" << Color::Bold << p_order << Color::Reset << ")\n"
+                  << "  " << Color::Blue << "Time:        " << Color::Reset << Color::Bold << "0.0 -> " << t_final << Color::Reset << "\n"
+                  << "  " << Color::Blue << "CFL:         " << Color::Reset << Color::Bold << cfl << Color::Reset << "\n"
+                  << "  " << Color::Yellow << "dt:          " << Color::Reset << Color::Bold << std::defaultfloat << std::setprecision(6) << dt << Color::Reset << "\n"
+                  << "  " << Color::Yellow << "Total Steps: " << Color::Reset << Color::Bold << total_steps << Color::Reset << "\n"
                   << std::endl;
 
         auto start_time = std::chrono::steady_clock::now();
@@ -427,9 +428,13 @@ int main(int argc, char* argv[]) {
         std::chrono::duration<double> total_elapsed = end_time - start_time;
         double steps_per_sec = (total_elapsed.count() > 0) ? (total_steps / total_elapsed.count()) : 0.0;
 
-        std::cout << Color::BoldGreen << "✔ Simulation Complete in "
-                  << std::fixed << std::setprecision(2) << total_elapsed.count() << "s ("
-                  << std::setprecision(0) << steps_per_sec << " steps/s)." << Color::Reset << "\n"
+        std::cout << Color::BoldGreen << "✔ Simulation Complete in ";
+        if (total_elapsed.count() < 1.0) {
+             std::cout << std::setprecision(0) << (total_elapsed.count() * 1000.0) << "ms";
+        } else {
+             std::cout << std::fixed << std::setprecision(2) << total_elapsed.count() << "s";
+        }
+        std::cout << " (" << std::setprecision(0) << steps_per_sec << " steps/s)." << Color::Reset << "\n"
                   << "Results saved in " << Color::Bold << output_dir << "/" << Color::Reset << std::endl;
 
         // Palette UX: Suggest next step with smart path detection
