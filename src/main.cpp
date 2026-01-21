@@ -31,6 +31,7 @@ struct comma_numpunct : std::numpunct<char> {
     #define HAS_IO_H 1
 #endif
 
+#include <sys/stat.h> // For umask/ _umask
 #include "fv_solver.hpp"
 #include "dg_solver.hpp"
 #include "hybrid_coupling.hpp"
@@ -198,6 +199,15 @@ void draw_progress_bar(int step, int total_steps, double elapsed_seconds, double
 }
 
 int main(int argc, char* argv[]) {
+    // Security: Set file creation mask to 0077 (rw-------)
+    // This ensures all files created by this process are private by default,
+    // eliminating the race condition between file creation and permission setting.
+#if defined(_WIN32) || defined(_WIN64)
+    _umask(0077);
+#else
+    umask(0077);
+#endif
+
     // Register signal handler
     std::signal(SIGINT, signal_handler);
 
