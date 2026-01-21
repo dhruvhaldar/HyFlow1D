@@ -176,13 +176,22 @@ double DiscontinuousGalerkinSolver::evaluate_element(int element_idx, double xi)
         double p_prev = 1.0; // P_0(xi)
         double p_curr = xi;  // P_1(xi)
 
-        if (n_modes > 0) val += u[base_idx] * p_prev;
+        // Precomputed inverse integers to avoid division in recurrence
+        // Supports up to k=5 (P=4, n_modes=5)
+        // We add extra padding just in case.
+        static constexpr double inv_k[] = {0.0, 1.0, 0.5, 0.3333333333333333, 0.25, 0.2, 0.1666666666666667, 0.14285714285714285};
+
+        // n_modes >= 1 is guaranteed by constructor (P >= 0)
+        val += u[base_idx] * p_prev;
         if (n_modes > 1) val += u[base_idx + 1] * p_curr;
 
         for (int k = 2; k < n_modes; ++k) {
+            // Check bounds for inv_k table to be safe against future P increases
+            double inv_k_val = (k < 8) ? inv_k[k] : 1.0 / static_cast<double>(k);
+
             // Recurrence: k P_k = (2k-1) x P_{k-1} - (k-1) P_{k-2}
-            double k_d = static_cast<double>(k);
-            double p_next = ((2.0 * k_d - 1.0) * xi * p_curr - (k_d - 1.0) * p_prev) / k_d;
+            // P_k = ((2k-1) x P_{k-1} - (k-1) P_{k-2}) / k
+            double p_next = ((2.0 * k - 1.0) * xi * p_curr - (k - 1.0) * p_prev) * inv_k_val;
 
             val += u[base_idx + k] * p_next;
             p_prev = p_curr;
@@ -389,10 +398,13 @@ void DiscontinuousGalerkinSolver::update_state(double dt) {
 
     // Because u and rhs are now flattened vectors of the same size,
     // we can use a single loop.
-    // This allows the compiler to vectorize efficiently.
+    // Optimization: explicit restrict pointers to help compiler vectorization.
+    double* RESTRICT u_ptr = u.data();
+    const double* RESTRICT rhs_ptr = rhs.data();
     size_t total_size = u.size();
+
     for (size_t idx = 0; idx < total_size; ++idx) {
-        u[idx] += dt * rhs[idx];
+        u_ptr[idx] += dt * rhs_ptr[idx];
     }
 }
 
