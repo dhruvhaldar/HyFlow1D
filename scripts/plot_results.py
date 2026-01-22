@@ -213,6 +213,16 @@ def plot_all():
              print(f"{Colors.YELLOW}⚠️  Warning: Could not set secure permissions (0600) on '{args.output}': {e}{Colors.RESET}")
 
         print(f"{Colors.BOLD_GREEN}✅ Plot saved to: {Colors.RESET}{Colors.BOLD}{os.path.abspath(args.output)}{Colors.RESET}")
+
+        # Palette UX: Suggest command to open the image based on OS
+        open_cmd = "xdg-open" # Default for Linux
+        if sys.platform == "darwin":
+            open_cmd = "open"
+        elif sys.platform == "win32":
+            open_cmd = "start"
+
+        print(f"   {Colors.YELLOW}💡 Tip: View it with: {Colors.BOLD}{open_cmd} {args.output}{Colors.RESET}")
+
     except Exception as e:
         print(f"{Colors.BOLD_RED}❌ Error saving plot: {e}{Colors.RESET}")
     finally:
