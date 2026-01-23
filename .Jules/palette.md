@@ -40,3 +40,7 @@ This journal records critical UX and accessibility learnings for the HyFlow1D pr
 ## 2024-10-28 - Data at a Glance
 **Learning:** Visualization scripts often hide the actual data values behind the image. Providing a textual summary (e.g., min/max range) alongside the plot generation gives users immediate quantitative insight without needing to open the image or write custom analysis code.
 **Action:** Include key statistics (min/max, mean, etc.) in the console output of visualization tools.
+
+## 2024-10-28 - Actionable Success States
+**Learning:** Success messages that only confirm completion ("Plot saved") force the user to manually find and open the file. Providing an immediate "Preview" option or a copy-pasteable command to view the result reduces friction and maintains flow.
+**Action:** Implement automatic preview flags (`--preview`) and display the view command in success messages.

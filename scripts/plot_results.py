@@ -4,6 +4,8 @@ import glob
 import os
 import argparse
 import difflib
+import subprocess
+import platform
 from pathlib import Path
 from itertools import cycle
 
@@ -75,6 +77,40 @@ def get_time_from_file(filepath):
         return None
     return None
 
+def get_open_command():
+    system = platform.system()
+    if system == 'Darwin':
+        return 'open'
+    elif system == 'Windows':
+        return 'start'
+    elif system == 'Linux':
+        return 'xdg-open'
+    return None
+
+def open_file(filepath):
+    if platform.system() == 'Windows':
+        try:
+            if hasattr(os, 'startfile'):
+                os.startfile(filepath)
+            else:
+                # Fallback: empty title arg required when path is quoted
+                subprocess.run(['cmd', '/c', 'start', '', filepath], check=True)
+            print(f"{Colors.BLUE}👀 Opening preview...{Colors.RESET}")
+        except Exception as e:
+            print(f"{Colors.YELLOW}⚠️  Warning: Failed to open preview: {e}{Colors.RESET}")
+        return
+
+    cmd = get_open_command()
+    if not cmd:
+        print(f"{Colors.YELLOW}⚠️  Warning: Could not detect how to open files on this OS.{Colors.RESET}")
+        return
+
+    try:
+        subprocess.run([cmd, filepath], check=True, stderr=subprocess.DEVNULL)
+        print(f"{Colors.BLUE}👀 Opening preview...{Colors.RESET}")
+    except Exception as e:
+        print(f"{Colors.YELLOW}⚠️  Warning: Failed to open preview: {e}{Colors.RESET}")
+
 def plot_all():
     parser = SmartArgumentParser(
         description="Visualize HyFlow1D simulation results.",
@@ -91,6 +127,11 @@ def plot_all():
         "-o", "--output",
         default="advection_plot.png",
         help="Output filename for the plot image."
+    )
+    parser.add_argument(
+        "-p", "--preview",
+        action="store_true",
+        help="Automatically open the generated plot file."
     )
 
     args = parser.parse_args()
@@ -213,6 +254,15 @@ def plot_all():
              print(f"{Colors.YELLOW}⚠️  Warning: Could not set secure permissions (0600) on '{args.output}': {e}{Colors.RESET}")
 
         print(f"{Colors.BOLD_GREEN}✅ Plot saved to: {Colors.RESET}{Colors.BOLD}{os.path.abspath(args.output)}{Colors.RESET}")
+
+        if args.preview:
+            open_file(os.path.abspath(args.output))
+        else:
+            cmd = get_open_command()
+            if cmd:
+                print(f"{Colors.YELLOW}💡 Tip: View with: {Colors.RESET}{cmd} {args.output}")
+                print(f"       Or run with {Colors.BOLD}--preview{Colors.RESET} next time.")
+
     except Exception as e:
         print(f"{Colors.BOLD_RED}❌ Error saving plot: {e}{Colors.RESET}")
     finally:
