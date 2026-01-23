@@ -25,6 +25,7 @@ struct comma_numpunct : std::numpunct<char> {
 // Check for unistd.h availability for isatty
 #if defined(__unix__) || defined(__APPLE__) || defined(__linux__)
     #include <unistd.h>
+    #include <fcntl.h>
     #define HAS_UNISTD 1
 #elif defined(_WIN32) || defined(_WIN64)
     #include <io.h>
@@ -32,6 +33,7 @@ struct comma_numpunct : std::numpunct<char> {
 #endif
 
 #include <sys/stat.h> // For umask/ _umask
+#include <cerrno>     // For ELOOP
 #include "fv_solver.hpp"
 #include "dg_solver.hpp"
 #include "hybrid_coupling.hpp"
@@ -66,6 +68,44 @@ bool is_safe_path(const std::string& path_str) {
 }
 
 void write_solution(const std::string& filename, const std::vector<std::pair<double, double>>& solution, double time = -1.0) {
+#if defined(HAS_UNISTD)
+    // Security: Securely open file avoiding TOCTOU race conditions.
+    // O_NOFOLLOW: Fail if the final component is a symlink.
+    // O_CREAT | O_TRUNC: Overwrite if exists (but not if symlink).
+    // Permissions 0600 are set atomically at creation.
+
+    int fd = open(filename.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC, 0600);
+    if (fd == -1) {
+        if (errno == ELOOP) {
+             std::cerr << Color::BoldRed << "Error: Output file '" << filename << "' is a symbolic link." << Color::Reset << std::endl;
+             std::cerr << "Refusing to overwrite symbolic links to prevent security risks." << std::endl;
+             return;
+        }
+        std::cerr << "Error opening file: " << filename << " (Error " << errno << ": " << std::strerror(errno) << ")" << std::endl;
+        return;
+    }
+
+    FILE* outfile = fdopen(fd, "w");
+    if (!outfile) {
+        std::cerr << "Error converting fd to FILE*: " << filename << std::endl;
+        close(fd);
+        return;
+    }
+
+    if (time >= 0.0) {
+        fprintf(outfile, "# t=%g\n", time);
+    }
+    fprintf(outfile, "x,u\n");
+    for (const auto& p : solution) {
+        // Use %.17g to ensure full double precision is preserved
+        fprintf(outfile, "%.17g,%.17g\n", p.first, p.second);
+    }
+    fclose(outfile); // Closes fd too
+
+    // Permissions were set atomically by open(), removing the race condition.
+
+#else
+    // Windows / Non-Unix Fallback
     // Security: Prevent Symlink Attack (Arbitrary File Overwrite)
     // Check if the output file is a symlink before opening it.
     // Note: This check mitigates "pre-planted" symlink attacks. A TOCTOU race condition
@@ -102,6 +142,7 @@ void write_solution(const std::string& filename, const std::vector<std::pair<dou
         // Log warning but don't crash simulation
         std::cerr << Color::Yellow << "Warning: Failed to set secure permissions on '" << filename << "': " << e.what() << Color::Reset << std::endl;
     }
+#endif
 }
 
 void show_usage(const char* prog_name) {

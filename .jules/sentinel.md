@@ -46,3 +46,8 @@
 **Vulnerability:** Files and directories were created with default process permissions (often world-readable) before being restricted to owner-only using `fs::permissions`. This created a race condition where sensitive data was briefly exposed.
 **Learning:** Post-creation permission hardening (e.g., `chmod` after `open`) is insufficient for confidentiality because it is not atomic. The default creation mask (`umask`) determines the initial permissions.
 **Prevention:** Set the process `umask` (e.g., `0077`) at application startup to ensuring all subsequently created files and directories are secure by default (atomic security).
+
+## 2025-01-23 - [TOCTOU Race Condition in File Creation]
+**Vulnerability:** A Time-of-Check Time-of-Use (TOCTOU) race condition existed in `write_solution` where `std::filesystem::is_symlink` was checked before opening the file with `std::ofstream`. This allowed an attacker to swap the file with a symlink between the check and the open.
+**Learning:** Checking for a condition (like `is_symlink`) and then performing an action is inherently insecure if the resource can change in between. C++ `std::ofstream` does not support atomic flags like `O_NOFOLLOW`.
+**Prevention:** Use platform-specific system calls (like `open` with `O_NOFOLLOW | O_CREAT | O_TRUNC`) to check and act atomically. On Unix-like systems, `O_NOFOLLOW` prevents opening symlinks at the system call level.
