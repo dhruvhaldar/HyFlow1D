@@ -4,6 +4,8 @@ import glob
 import os
 import argparse
 import difflib
+import subprocess
+import platform
 from pathlib import Path
 from itertools import cycle
 
@@ -75,6 +77,15 @@ def get_time_from_file(filepath):
         return None
     return None
 
+def open_file(filepath):
+    """Opens a file with the default system application."""
+    if platform.system() == 'Darwin':       # macOS
+        subprocess.call(('open', filepath))
+    elif platform.system() == 'Windows':    # Windows
+        os.startfile(filepath)
+    else:                                   # linux variants
+        subprocess.call(('xdg-open', filepath))
+
 def plot_all():
     parser = SmartArgumentParser(
         description="Visualize HyFlow1D simulation results.",
@@ -91,6 +102,11 @@ def plot_all():
         "-o", "--output",
         default="advection_plot.png",
         help="Output filename for the plot image."
+    )
+    parser.add_argument(
+        "-p", "--preview",
+        action="store_true",
+        help="Automatically open the generated plot in the default viewer."
     )
 
     args = parser.parse_args()
@@ -213,6 +229,14 @@ def plot_all():
              print(f"{Colors.YELLOW}⚠️  Warning: Could not set secure permissions (0600) on '{args.output}': {e}{Colors.RESET}")
 
         print(f"{Colors.BOLD_GREEN}✅ Plot saved to: {Colors.RESET}{Colors.BOLD}{os.path.abspath(args.output)}{Colors.RESET}")
+
+        if args.preview:
+            try:
+                print(f"{Colors.BLUE}👀 Opening preview...{Colors.RESET}")
+                open_file(args.output)
+            except Exception as e:
+                print(f"{Colors.YELLOW}⚠️  Warning: Could not open preview: {e}{Colors.RESET}")
+
     except Exception as e:
         print(f"{Colors.BOLD_RED}❌ Error saving plot: {e}{Colors.RESET}")
     finally:
