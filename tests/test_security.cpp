@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cassert>
 #include <stdexcept>
+#include <limits>
 #include "fv_solver.hpp"
 #include "dg_solver.hpp"
 
@@ -20,6 +21,27 @@ int main() {
         try {
             fv.initialize(0.0, 1.0, OVER_LIMIT);
         } catch (const std::length_error& e) {
+            caught = true;
+        } catch (...) {
+            std::cout << "FAILED (Wrong exception type)" << std::endl;
+            return 1;
+        }
+
+        if (caught) std::cout << "PASSED" << std::endl;
+        else {
+            std::cout << "FAILED (No exception thrown)" << std::endl;
+            return 1;
+        }
+    }
+
+    // Test DG Solver Constructor Validation (Integer Overflow/UB prevention)
+    {
+        std::cout << "  Testing DG Solver Constructor Validation... ";
+        bool caught = false;
+        try {
+            // Attempt to create solver with INT_MAX to trigger potential overflow
+            DiscontinuousGalerkinSolver dg(std::numeric_limits<int>::max());
+        } catch (const std::invalid_argument& e) {
             caught = true;
         } catch (...) {
             std::cout << "FAILED (Wrong exception type)" << std::endl;
