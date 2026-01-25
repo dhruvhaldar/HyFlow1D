@@ -13,3 +13,7 @@
 ## 2024-05-24 - Polynomial Evaluation Complexity
 **Learning:** Evaluating a polynomial expansion $\sum u_k P_k(x)$ by calling `legendre(k, x)` for each term creates an $O(N^2)$ bottleneck because each call re-computes $P_0 \dots P_k$. Using the inline recurrence relation reduces this to $O(N)$ and yields a ~27% speedup in the evaluation kernel while preserving code clarity.
 **Action:** Always prefer inline recurrence (e.g., Clenshaw-like) for evaluating orthogonal polynomial series over independent function calls.
+
+## 2024-10-24 - FV Solver Stencil Optimization
+**Learning:** For 1D stencil operations (like Finite Volume `u[i] - u[i-1]`), manually caching the previous element in a register variable (`u_prev`) combined with `__restrict__` pointers yielded a 3x speedup. The compiler failed to optimize the redundant memory load of `u[i-1]` (which was `u[i]` in the previous iteration) automatically, likely due to potential aliasing concerns or conservative analysis.
+**Action:** When implementing stencil loops, explicitly use local variables to carry over dependencies and use `__restrict__` pointers to hint the compiler, even for simple 1st-order schemes.

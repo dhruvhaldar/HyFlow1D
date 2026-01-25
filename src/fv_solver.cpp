@@ -2,6 +2,12 @@
 #include <stdexcept>
 #include <string>
 
+#if defined(_MSC_VER)
+#define RESTRICT __restrict
+#else
+#define RESTRICT __restrict__
+#endif
+
 void FiniteVolumeSolver::initialize(double start, double end, int n_elem) {
     if (n_elem <= 0) {
         throw std::invalid_argument("Number of elements must be positive.");
@@ -48,21 +54,33 @@ void FiniteVolumeSolver::compute_rhs(double /*t*/, double a) {
     // RHS = -a * (u_i - u_{i-1}) / dx = (-a/dx) * (u_i - u_{i-1})
     const double coeff = -a / dx;
 
+    double* RESTRICT rhs_ptr = rhs.data();
+    const double* RESTRICT u_ptr = u.data();
+
     // Peel first iteration to remove branch from main loop
     if (n_elements > 0) {
-        rhs[0] = coeff * (u[0] - left_ghost);
+        rhs_ptr[0] = coeff * (u_ptr[0] - left_ghost);
     }
 
     // Main loop - no branching, vectorization friendly
+    // Optimization: Cache u_prev to reduce memory loads (u[i] is loaded once instead of twice)
+    double u_prev = u_ptr[0];
     for (int i = 1; i < n_elements; ++i) {
-        rhs[i] = coeff * (u[i] - u[i - 1]);
+        double u_curr = u_ptr[i];
+        rhs_ptr[i] = coeff * (u_curr - u_prev);
+        u_prev = u_curr;
     }
 }
 
 void FiniteVolumeSolver::update_state(double dt) {
     if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
-    for (size_t i = 0; i < u.size(); ++i) {
-        u[i] += dt * rhs[i];
+
+    double* RESTRICT u_ptr = u.data();
+    const double* RESTRICT rhs_ptr = rhs.data();
+    size_t size = u.size();
+
+    for (size_t i = 0; i < size; ++i) {
+        u_ptr[i] += dt * rhs_ptr[i];
     }
 }
 
