@@ -61,4 +61,7 @@ public:
 private:
     // Helper to evaluate solution at local coordinate xi in [-1, 1] for element i
     double evaluate_element(int element_idx, double xi) const;
+
+    // Security: Validate polynomial order before initialization to prevent UB
+    static int validate_order(int p);
 };

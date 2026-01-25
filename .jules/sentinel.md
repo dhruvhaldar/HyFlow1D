@@ -46,3 +46,8 @@
 **Vulnerability:** Files and directories were created with default process permissions (often world-readable) before being restricted to owner-only using `fs::permissions`. This created a race condition where sensitive data was briefly exposed.
 **Learning:** Post-creation permission hardening (e.g., `chmod` after `open`) is insufficient for confidentiality because it is not atomic. The default creation mask (`umask`) determines the initial permissions.
 **Prevention:** Set the process `umask` (e.g., `0077`) at application startup to ensuring all subsequently created files and directories are secure by default (atomic security).
+
+## 2025-01-26 - [Undefined Behavior in Constructor Initialization]
+**Vulnerability:** The `DiscontinuousGalerkinSolver` constructor computed a member variable (`n_modes = p_order + 1`) in the initialization list before validating `p_order` in the body. Passing `INT_MAX` caused Signed Integer Overflow (Undefined Behavior) before validation could occur.
+**Learning:** In C++, member initialization happens before the constructor body is executed. Validation logic placed inside the body is "too late" if the initialization expressions themselves are unsafe.
+**Prevention:** Use static helper functions to validate input arguments *before* they are used in the initialization list (e.g., `: member(validate(input))`).
