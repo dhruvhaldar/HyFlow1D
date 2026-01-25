@@ -15,6 +15,7 @@
 #include <csignal>
 #include <algorithm>
 #include <numeric>
+#include <cerrno>
 
 // Custom numpunct to add thousands separator (comma)
 struct comma_numpunct : std::numpunct<char> {
@@ -25,6 +26,7 @@ struct comma_numpunct : std::numpunct<char> {
 // Check for unistd.h availability for isatty
 #if defined(__unix__) || defined(__APPLE__) || defined(__linux__)
     #include <unistd.h>
+    #include <fcntl.h>
     #define HAS_UNISTD 1
 #elif defined(_WIN32) || defined(_WIN64)
     #include <io.h>
@@ -66,11 +68,46 @@ bool is_safe_path(const std::string& path_str) {
 }
 
 void write_solution(const std::string& filename, const std::vector<std::pair<double, double>>& solution, double time = -1.0) {
-    // Security: Prevent Symlink Attack (Arbitrary File Overwrite)
-    // Check if the output file is a symlink before opening it.
-    // Note: This check mitigates "pre-planted" symlink attacks. A TOCTOU race condition
-    // still exists if a symlink is created between this check and the open call,
-    // but this requires precise timing from an attacker.
+#if defined(HAS_UNISTD)
+    // Security: Prevent Symlink Attack (Arbitrary File Overwrite) via O_NOFOLLOW
+    // This atomic check prevents TOCTOU race conditions.
+    // 0600 permissions are set atomically at creation.
+    int fd = open(filename.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC, 0600);
+
+    if (fd == -1) {
+        if (errno == ELOOP) {
+            std::cerr << Color::BoldRed << "Error: Output file '" << filename << "' is a symbolic link." << Color::Reset << std::endl;
+            std::cerr << "Refusing to overwrite symbolic links to prevent security risks." << std::endl;
+        } else {
+            std::cerr << Color::BoldRed << "Error opening file '" << filename << "': " << std::strerror(errno) << Color::Reset << std::endl;
+        }
+        return;
+    }
+
+    // Convert fd to FILE* for convenient formatting
+    FILE* outfile = fdopen(fd, "w");
+    if (!outfile) {
+        std::cerr << "Error: fdopen failed." << std::endl;
+        close(fd);
+        return;
+    }
+
+    // Ensure strict closing via RAII
+    struct FileDeleter {
+        void operator()(FILE* f) const { std::fclose(f); }
+    };
+    std::unique_ptr<FILE, FileDeleter> file_guard(outfile);
+
+    if (time >= 0.0) {
+        fprintf(outfile, "# t=%.17g\n", time);
+    }
+    fprintf(outfile, "x,u\n");
+    for (const auto& p : solution) {
+        fprintf(outfile, "%.17g,%.17g\n", p.first, p.second);
+    }
+    // fclose handled by unique_ptr
+#else
+    // Windows/Other: Fallback to std::ofstream with basic checks (Best Effort)
     std::filesystem::path path(filename);
     if (std::filesystem::is_symlink(path)) {
         std::cerr << Color::BoldRed << "Error: Output file '" << filename << "' is a symbolic link." << Color::Reset << std::endl;
@@ -92,16 +129,15 @@ void write_solution(const std::string& filename, const std::vector<std::pair<dou
     }
     outfile.close();
 
-    // Security: Restrict file permissions to owner only (0600)
-    // This ensures sensitive simulation data is not readable by others on shared systems.
+    // Security: Restrict file permissions to owner only
     try {
         std::filesystem::permissions(filename,
             std::filesystem::perms::owner_read | std::filesystem::perms::owner_write,
             std::filesystem::perm_options::replace | std::filesystem::perm_options::nofollow);
     } catch (const std::filesystem::filesystem_error& e) {
-        // Log warning but don't crash simulation
         std::cerr << Color::Yellow << "Warning: Failed to set secure permissions on '" << filename << "': " << e.what() << Color::Reset << std::endl;
     }
+#endif
 }
 
 void show_usage(const char* prog_name) {
