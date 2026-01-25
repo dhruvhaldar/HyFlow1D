@@ -40,3 +40,7 @@ This journal records critical UX and accessibility learnings for the HyFlow1D pr
 ## 2024-10-28 - Data at a Glance
 **Learning:** Visualization scripts often hide the actual data values behind the image. Providing a textual summary (e.g., min/max range) alongside the plot generation gives users immediate quantitative insight without needing to open the image or write custom analysis code.
 **Action:** Include key statistics (min/max, mean, etc.) in the console output of visualization tools.
+
+## 2024-10-28 - Immediate Visual Feedback
+**Learning:** Generating visual artifacts (like plots) creates a friction point where the user must switch context from the terminal to a file explorer to verify the result.
+**Action:** Provide an optional "preview" flag (or default behavior) that automatically opens the generated artifact in the system's default viewer, closing the feedback loop immediately.
