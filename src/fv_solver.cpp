@@ -63,12 +63,10 @@ void FiniteVolumeSolver::compute_rhs(double /*t*/, double a) {
     }
 
     // Main loop - no branching, vectorization friendly
-    // Optimization: Cache u_prev to reduce memory loads (u[i] is loaded once instead of twice)
-    double u_prev = u_ptr[0];
+    // Optimization: Loop structure allows auto-vectorization by compiler.
+    // Modern compilers handle the adjacent loads (u[i] and u[i-1]) efficiently.
     for (int i = 1; i < n_elements; ++i) {
-        double u_curr = u_ptr[i];
-        rhs_ptr[i] = coeff * (u_curr - u_prev);
-        u_prev = u_curr;
+        rhs_ptr[i] = coeff * (u_ptr[i] - u_ptr[i-1]);
     }
 }
 
