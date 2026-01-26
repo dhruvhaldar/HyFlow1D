@@ -160,6 +160,9 @@ def plot_all():
     print(f"{Colors.BOLD}🎨 Plotting {len(files_to_plot)} snapshots:{Colors.RESET}")
 
     loaded_data = []
+    first_valid_max = None
+    last_valid_max = None
+
     for f in files_to_plot:
         t_val = get_time_from_file(f)
         fname = os.path.basename(f)
@@ -171,9 +174,32 @@ def plot_all():
             stats = f"[min: {min_u:+.2f}, max: {max_u:+.2f}]"
             loaded_data.append((f, df, t_val))
             print(f"   • {Colors.BLUE}{fname:<20}{Colors.RESET} ({t_str}) {Colors.YELLOW}{stats}{Colors.RESET}")
+
+            # Track peak for analysis
+            if first_valid_max is None:
+                first_valid_max = max_u
+            last_valid_max = max_u
+
         except Exception as e:
             print(f"   • {Colors.BLUE}{fname:<20}{Colors.RESET} ({t_str}) {Colors.RED}[read error]{Colors.RESET}")
             loaded_data.append((f, None, t_val))
+
+    # Palette UX: Provide immediate signal analysis
+    if first_valid_max is not None and last_valid_max is not None:
+        delta = last_valid_max - first_valid_max
+        pct = (delta / first_valid_max * 100) if abs(first_valid_max) > 1e-9 else 0.0
+
+        if delta < -1e-6:
+            icon, color = "📉", Colors.YELLOW
+            status = "Peak Decay"
+        elif delta > 1e-6:
+            icon, color = "📈", Colors.BOLD_GREEN
+            status = "Peak Growth"
+        else:
+            icon, color = "➡️", Colors.BLUE
+            status = "Peak Preserved"
+
+        print(f"   {icon} {Colors.BOLD}{status}:{Colors.RESET} {first_valid_max:.2f} → {last_valid_max:.2f} ({color}{pct:+.1f}%{Colors.RESET})")
 
     plt.figure(figsize=(10, 6))
 
@@ -203,7 +229,15 @@ def plot_all():
     plt.axvline(x=0.5, color='gray', linestyle='--', alpha=0.7, label='Interface (FV | DG)')
     plt.xlabel('Position (x)')
     plt.ylabel('Value (u)')
-    plt.title('Hybrid FV-DG Linear Advection Simulation')
+
+    # Palette UX: Contextual Title
+    valid_times = [t for _, _, t in loaded_data if t is not None]
+    if valid_times:
+        t_start, t_end = min(valid_times), max(valid_times)
+        plt.title(f'Hybrid FV-DG Linear Advection Simulation (t={t_start:.2f}s → t={t_end:.2f}s)')
+    else:
+        plt.title('Hybrid FV-DG Linear Advection Simulation')
+
     plt.legend()
     plt.grid(True, alpha=0.3)
 
