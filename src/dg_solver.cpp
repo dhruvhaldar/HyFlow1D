@@ -187,8 +187,8 @@ double DiscontinuousGalerkinSolver::evaluate_element(int element_idx, double xi)
         if (n_modes > 1) val += u[base_idx + 1] * p_curr;
 
         for (int k = 2; k < n_modes; ++k) {
-            // Check bounds for inv_k table to be safe against future P increases
-            double inv_k_val = (k < 8) ? inv_k[k] : 1.0 / static_cast<double>(k);
+            // Optimization: Skip bounds check (k < 8) since n_modes <= 5 is guaranteed by constructor.
+            double inv_k_val = inv_k[k];
 
             // Recurrence: k P_k = (2k-1) x P_{k-1} - (k-1) P_{k-2}
             // P_k = ((2k-1) x P_{k-1} - (k-1) P_{k-2}) / k
