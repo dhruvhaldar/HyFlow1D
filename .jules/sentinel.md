@@ -51,3 +51,8 @@
 **Vulnerability:** The `DiscontinuousGalerkinSolver` constructor computed a member variable (`n_modes = p_order + 1`) in the initialization list before validating `p_order` in the body. Passing `INT_MAX` caused Signed Integer Overflow (Undefined Behavior) before validation could occur.
 **Learning:** In C++, member initialization happens before the constructor body is executed. Validation logic placed inside the body is "too late" if the initialization expressions themselves are unsafe.
 **Prevention:** Use static helper functions to validate input arguments *before* they are used in the initialization list (e.g., `: member(validate(input))`).
+
+## 2026-01-26 - [Secure File Opening with High-Level Libraries]
+**Vulnerability:** A TOCTOU race condition existed in a Python script where `Path.is_symlink()` was checked before `plt.savefig()`. An attacker could switch the file to a symlink between the check and the write.
+**Learning:** Checking for symlinks in user-space (`is_symlink`) before opening is inherently racy. High-level libraries like `matplotlib` do not expose `O_NOFOLLOW` options directly.
+**Prevention:** Use low-level `os.open` with `O_NOFOLLOW | O_CREAT | O_TRUNC` and secure permissions (`0o600`) to get a file descriptor, then wrap it with `os.fdopen` and pass the file object to the high-level library. This ensures atomic security while retaining the convenience of the library.

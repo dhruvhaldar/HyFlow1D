@@ -6,6 +6,7 @@ import argparse
 import difflib
 import subprocess
 import platform
+import errno
 from pathlib import Path
 from itertools import cycle
 
@@ -120,12 +121,6 @@ def plot_all():
         print("❌ Error: Invalid output filename. Path traversal ('..') is not allowed.")
         sys.exit(1)
 
-    # Security: Prevent overwriting symbolic links to prevent Symlink Attacks
-    if Path(args.output).is_symlink():
-        print(f"{Colors.BOLD_RED}❌ Error: Output file '{args.output}' is a symbolic link.{Colors.RESET}")
-        print(f"   Refusing to overwrite symbolic links to prevent security risks.")
-        sys.exit(1)
-
     # Determine search path
     if args.input_dir:
         search_path = os.path.join(args.input_dir, "solution_*.csv")
@@ -213,20 +208,24 @@ def plot_all():
     plt.grid(True, alpha=0.3)
 
     # Security: Ensure sensitive data visualization is protected
-    # Set umask to 0o177 to ensure the file is created with 0600 permissions (rw-------)
-    # We save the old umask to restore it later.
-    # 0o177 masks group/other rwx and user x.
-    old_umask = os.umask(0o177)
+    # Use atomic file opening with O_NOFOLLOW to prevent TOCTOU symlink attacks
+    # and set permissions to 0600 (rw-------) at creation time.
     try:
-        plt.savefig(args.output, dpi=150)
+        # Prepare flags: Write only, Create if missing, Truncate if exists
+        flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
 
-        # Explicitly enforce 0600 permissions as a second layer of defense (Defense in Depth)
-        # This ensures that even if umask was somehow ineffective, we restrict access.
-        try:
-            os.chmod(args.output, 0o600)
-        except OSError as e:
-             # If we don't own the file (but could write to it), chmod might fail.
-             print(f"{Colors.YELLOW}⚠️  Warning: Could not set secure permissions (0600) on '{args.output}': {e}{Colors.RESET}")
+        # Add O_NOFOLLOW if available (Linux/Unix) to prevent following symlinks
+        if hasattr(os, 'O_NOFOLLOW'):
+            flags |= os.O_NOFOLLOW
+
+        # Open file atomically with secure permissions (0o600)
+        fd = os.open(args.output, flags, 0o600)
+
+        # Wrap file descriptor in a file object
+        with os.fdopen(fd, 'wb') as f:
+            # Explicitly determine format since file-like objects might not provide name/ext
+            fmt = os.path.splitext(args.output)[1][1:] or 'png'
+            plt.savefig(f, dpi=150, format=fmt)
 
         print(f"{Colors.BOLD_GREEN}✅ Plot saved to: {Colors.RESET}{Colors.BOLD}{os.path.abspath(args.output)}{Colors.RESET}")
 
@@ -237,11 +236,15 @@ def plot_all():
             except Exception as e:
                 print(f"{Colors.YELLOW}⚠️  Warning: Could not open preview: {e}{Colors.RESET}")
 
+    except OSError as e:
+        if e.errno == errno.ELOOP:
+            print(f"{Colors.BOLD_RED}❌ Error: Output file '{args.output}' is a symbolic link.{Colors.RESET}")
+            print(f"   Refusing to overwrite symbolic links to prevent security risks.")
+            sys.exit(1)
+        else:
+             print(f"{Colors.BOLD_RED}❌ Error saving plot: {e}{Colors.RESET}")
     except Exception as e:
         print(f"{Colors.BOLD_RED}❌ Error saving plot: {e}{Colors.RESET}")
-    finally:
-        # Always restore the original umask
-        os.umask(old_umask)
 
 if __name__ == "__main__":
     plot_all()
