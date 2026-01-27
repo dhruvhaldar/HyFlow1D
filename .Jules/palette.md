@@ -44,3 +44,7 @@ This journal records critical UX and accessibility learnings for the HyFlow1D pr
 ## 2024-10-28 - Immediate Visual Feedback
 **Learning:** Generating visual artifacts (like plots) creates a friction point where the user must switch context from the terminal to a file explorer to verify the result.
 **Action:** Provide an optional "preview" flag (or default behavior) that automatically opens the generated artifact in the system's default viewer, closing the feedback loop immediately.
+
+## 2024-10-28 - Non-TTY Output Consistency
+**Learning:** CLI tools running in non-interactive environments (CI, pipes) often fall back to raw unformatted output, making logs hard to parse for humans. Consistent formatting (like fixed precision for timestamps) is just as important in logs as it is in interactive progress bars.
+**Action:** Ensure fallback (non-TTY) logging paths use the same formatting flags (precision, units) as their interactive counterparts.
