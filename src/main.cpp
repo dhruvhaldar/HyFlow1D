@@ -332,6 +332,24 @@ int main(int argc, char* argv[]) {
                 fs::permissions(output_dir, fs::perms::owner_all, fs::perm_options::replace | fs::perm_options::nofollow);
             }
         } else {
+            // Security: Enforce safe permissions on existing directory
+            // We only attempt to fix permissions if it's NOT a symlink to avoid side effects.
+            if (!fs::is_symlink(output_dir)) {
+                 auto perms = fs::status(output_dir).permissions();
+                 if ((perms & (fs::perms::group_all | fs::perms::others_all)) != fs::perms::none) {
+                      std::cerr << Color::Yellow << "⚠️  Warning: Output directory '" << output_dir << "' has insecure permissions (Group/World accessible)." << Color::Reset << std::endl;
+                      std::cerr << "    Attempting to secure it (0700)... ";
+                      try {
+                          fs::permissions(output_dir, fs::perms::owner_all, fs::perm_options::replace);
+                          std::cerr << Color::Green << "Done." << Color::Reset << std::endl;
+                      } catch (const std::exception& e) {
+                          std::cerr << Color::Red << "Failed (" << e.what() << ")." << Color::Reset << std::endl;
+                      }
+                 }
+            } else {
+                 std::cerr << Color::Yellow << "⚠️  Warning: Output directory is a symbolic link. Ensure target permissions are secure manually." << Color::Reset << std::endl;
+            }
+
             // Palette UX: Warn if output directory contains previous results
             // This prevents confusion when new results are mixed with old ones (e.g. fewer steps)
             bool has_solution_files = false;

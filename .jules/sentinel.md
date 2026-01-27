@@ -56,3 +56,8 @@
 **Vulnerability:** A TOCTOU race condition existed in a Python script where `Path.is_symlink()` was checked before `plt.savefig()`. An attacker could switch the file to a symlink between the check and the write.
 **Learning:** Checking for symlinks in user-space (`is_symlink`) before opening is inherently racy. High-level libraries like `matplotlib` do not expose `O_NOFOLLOW` options directly.
 **Prevention:** Use low-level `os.open` with `O_NOFOLLOW | O_CREAT | O_TRUNC` and secure permissions (`0o600`) to get a file descriptor, then wrap it with `os.fdopen` and pass the file object to the high-level library. This ensures atomic security while retaining the convenience of the library.
+
+## 2025-01-27 - [Insecure Existing Directory Permissions]
+**Vulnerability:** The application accepted existing output directories with insecure permissions (e.g., world-readable) and wrote sensitive results into them without warning or enforcement.
+**Learning:** Checking permissions at creation time (via `umask` or `mkdir`) is insufficient because users may point the tool to pre-existing, insecure directories.
+**Prevention:** Explicitly check and enforce secure permissions (e.g., `0700`) on the output directory at runtime, even if it already exists, while being careful to avoid symlink attacks (do not modify if symlink).
