@@ -208,16 +208,18 @@ namespace {
                                const double* RESTRICT u,
                                double* RESTRICT rhs,
                                const double* RESTRICT stiffness_matrix,
-                               const double* RESTRICT inv_mass_matrix,
+                               double dx,
                                double left_ghost,
                                double a) {
         double prev_boundary_val = left_ghost;
 
         // Optimization: Precompute scaled inverse mass matrix
         // This avoids multiplying by 'a' inside the inner loop for every term.
+        // We compute inv_mass on the fly to avoid memory loads from the heap-allocated inv_mass_matrix.
         double scaled_inv_mass[N];
+        double a_over_dx = a / dx;
         for (int k = 0; k < N; ++k) {
-            scaled_inv_mass[k] = inv_mass_matrix[k] * a;
+            scaled_inv_mass[k] = (2.0 * k + 1.0) * a_over_dx;
         }
 
         // Optimization: Copy stiffness matrix to stack to ensure fast access and help compiler with aliasing.
@@ -335,16 +337,16 @@ void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
     // n_modes = p_order + 1.
     switch (n_modes) {
         case 1: // P=0
-            compute_rhs_optimized<1>(n_elements, u.data(), rhs.data(), stiffness_matrix.data(), inv_mass_matrix.data(), left_ghost, a);
+            compute_rhs_optimized<1>(n_elements, u.data(), rhs.data(), stiffness_matrix.data(), dx, left_ghost, a);
             return;
         case 2: // P=1
-            compute_rhs_optimized<2>(n_elements, u.data(), rhs.data(), stiffness_matrix.data(), inv_mass_matrix.data(), left_ghost, a);
+            compute_rhs_optimized<2>(n_elements, u.data(), rhs.data(), stiffness_matrix.data(), dx, left_ghost, a);
             return;
         case 3: // P=2
-            compute_rhs_optimized<3>(n_elements, u.data(), rhs.data(), stiffness_matrix.data(), inv_mass_matrix.data(), left_ghost, a);
+            compute_rhs_optimized<3>(n_elements, u.data(), rhs.data(), stiffness_matrix.data(), dx, left_ghost, a);
             return;
         case 4: // P=3
-            compute_rhs_optimized<4>(n_elements, u.data(), rhs.data(), stiffness_matrix.data(), inv_mass_matrix.data(), left_ghost, a);
+            compute_rhs_optimized<4>(n_elements, u.data(), rhs.data(), stiffness_matrix.data(), dx, left_ghost, a);
             return;
     }
 
