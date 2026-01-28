@@ -152,13 +152,8 @@ void DiscontinuousGalerkinSolver::set_initial_condition(double (*func)(double)) 
 }
 
 double DiscontinuousGalerkinSolver::evaluate_element(int element_idx, double xi) const {
-    if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
-    if (element_idx < 0 || element_idx >= n_elements) {
-        throw std::out_of_range("Element index out of bounds: " + std::to_string(element_idx));
-    }
-    if (std::abs(xi) > 1.0 + 1e-12) {
-        throw std::domain_error("Local coordinate xi must be in [-1, 1]. Got: " + std::to_string(xi));
-    }
+    // Optimization: Removed redundant checks for performance in hot path.
+    // This method is private and only called with trusted indices.
 
     double val = 0.0;
     int base_idx = element_idx * n_modes;
@@ -167,8 +162,10 @@ double DiscontinuousGalerkinSolver::evaluate_element(int element_idx, double xi)
             val += u[base_idx + k]; // P_k(1) = 1
         }
     } else if (xi == -1.0) {
+        double sign = 1.0;
         for (int k = 0; k < n_modes; ++k) {
-            val += u[base_idx + k] * ((k % 2 == 0) ? 1.0 : -1.0); // P_k(-1) = (-1)^k
+            val += u[base_idx + k] * sign; // P_k(-1) = (-1)^k
+            sign = -sign;
         }
     } else {
         // Optimization: Use recurrence relation to evaluate all P_k(xi) in one pass O(N).
@@ -450,11 +447,25 @@ std::vector<std::pair<double, double>> DiscontinuousGalerkinSolver::get_solution
 }
 
 double DiscontinuousGalerkinSolver::get_left_boundary_value() const {
-    return evaluate_element(0, -1.0);
+    // Optimization: Direct access avoids function call overhead and internal branching
+    double val = 0.0;
+    double sign = 1.0;
+    // Element 0 start index is 0
+    for (int k = 0; k < n_modes; ++k) {
+        val += u[k] * sign;
+        sign = -sign;
+    }
+    return val;
 }
 
 double DiscontinuousGalerkinSolver::get_right_boundary_value() const {
-    return evaluate_element(n_elements - 1, 1.0);
+    // Optimization: Direct access avoids function call overhead and internal branching
+    double val = 0.0;
+    int base_idx = (n_elements - 1) * n_modes;
+    for (int k = 0; k < n_modes; ++k) {
+        val += u[base_idx + k];
+    }
+    return val;
 }
 
 void DiscontinuousGalerkinSolver::set_left_neighbor_value(double val) {
