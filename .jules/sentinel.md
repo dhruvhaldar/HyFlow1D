@@ -56,3 +56,8 @@
 **Vulnerability:** A TOCTOU race condition existed in a Python script where `Path.is_symlink()` was checked before `plt.savefig()`. An attacker could switch the file to a symlink between the check and the write.
 **Learning:** Checking for symlinks in user-space (`is_symlink`) before opening is inherently racy. High-level libraries like `matplotlib` do not expose `O_NOFOLLOW` options directly.
 **Prevention:** Use low-level `os.open` with `O_NOFOLLOW | O_CREAT | O_TRUNC` and secure permissions (`0o600`) to get a file descriptor, then wrap it with `os.fdopen` and pass the file object to the high-level library. This ensures atomic security while retaining the convenience of the library.
+
+## 2025-01-26 - [Argument Injection in Helper Scripts]
+**Vulnerability:** The `plot_results.py` script accepted user-controlled paths for file opening without validation, allowing Argument Injection (e.g., passing filenames starting with `-`) to the underlying `open`/`xdg-open` command via `subprocess.call`.
+**Learning:** Helper scripts often bridge the gap between user input and shell commands. Resolving paths to absolute paths neutralizes ambiguity between filenames and command-line flags.
+**Prevention:** Always resolve file paths to absolute paths (`os.path.abspath`) before passing them to shell commands or `subprocess` calls, especially when the command might interpret arguments starting with `-` as flags.
