@@ -197,6 +197,19 @@ void suggest_flag(const std::string& invalid_flag) {
     }
 }
 
+namespace {
+    // UX Helper: Cursor Guard for Progress Bar
+    struct CursorGuard {
+        bool active;
+        CursorGuard(bool enable) : active(enable) {
+            if (active) std::cout << Color::CursorHide << std::flush;
+        }
+        ~CursorGuard() {
+            if (active) std::cout << Color::CursorShow << std::flush;
+        }
+    };
+}
+
 void draw_progress_bar(int step, int total_steps, double elapsed_seconds, double t_current, double t_final) {
     float progress = (float)step / total_steps;
     if (progress > 1.0f) progress = 1.0f;
@@ -434,6 +447,9 @@ int main(int argc, char* argv[]) {
                   << std::endl;
 
         auto start_time = std::chrono::steady_clock::now();
+
+        // UX: Hide cursor during simulation if progress bar is active
+        CursorGuard cursor_guard(!verbose && is_tty);
 
         while (t < t_final) {
             if (g_signal_status == SIGINT) {
