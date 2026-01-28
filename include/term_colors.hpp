@@ -41,4 +41,8 @@ namespace Color {
     inline constexpr Code BoldMagenta {"\033[1;35m"};
     inline constexpr Code BoldCyan    {"\033[1;36m"};
     inline constexpr Code BoldWhite   {"\033[1;37m"};
+
+    // Cursor Controls
+    inline constexpr Code CursorHide  {"\033[?25l"};
+    inline constexpr Code CursorShow  {"\033[?25h"};
 }
