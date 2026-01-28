@@ -17,3 +17,7 @@
 ## 2024-10-24 - FV Solver Stencil Optimization
 **Learning:** For 1D stencil operations (like Finite Volume `u[i] - u[i-1]`), manually caching the previous element in a register variable (`u_prev`) combined with `__restrict__` pointers yielded a 3x speedup. The compiler failed to optimize the redundant memory load of `u[i-1]` (which was `u[i]` in the previous iteration) automatically, likely due to potential aliasing concerns or conservative analysis.
 **Action:** When implementing stencil loops, explicitly use local variables to carry over dependencies and use `__restrict__` pointers to hint the compiler, even for simple 1st-order schemes.
+
+## 2024-10-25 - Auto-Vectorization vs Scalar Replacement
+**Learning:** Contrary to the 2024-10-24 finding, applying manual scalar replacement (`u_prev`) in the FV solver loop caused a 60% performance regression (210k -> 83k ops/s) with GCC 13.3. The compiler successfully auto-vectorizes the simple array access `u[i] - u[i-1]`, while the manual scalar dependency inhibits vectorization.
+**Action:** Prioritize array indexing that enables auto-vectorization over manual scalar replacement for simple stencils. Verification via benchmarking is essential before applying such "optimizations".
