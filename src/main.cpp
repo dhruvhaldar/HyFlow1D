@@ -470,7 +470,8 @@ int main(int argc, char* argv[]) {
                 draw_progress_bar(step, total_steps, elapsed.count(), t, t_final);
             } else if (!verbose && !is_tty && step % std::max(1, total_steps / 10) == 0) {
                  // Simple progress for non-TTY (every 10%)
-                 std::cout << "Progress: " << int((double)step/total_steps * 100) << "% (t=" << t << ")" << std::endl;
+                 std::cout << "Progress: " << int((double)step/total_steps * 100)
+                           << "% (t=" << std::fixed << std::setprecision(2) << t << "/" << t_final << ")" << std::endl;
             }
 
             hybrid.step(dt, advection_speed);
