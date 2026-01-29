@@ -295,13 +295,15 @@ namespace {
                 }
                 if constexpr (N >= 3) {
                      // k=2, m=0,1
-                     double vol = local_K[1] * u_local[0] + local_K[2] * u_local[1];
+                     // Optimization: K[1] (k=2, m=0) is mathematically 0 due to parity.
+                     double vol = local_K[2] * u_local[1];
                      double total_rhs = vol - surf_term_even;
                      rhs_elem[2] = total_rhs * scaled_inv_mass[2];
                 }
                 if constexpr (N >= 4) {
                      // k=3, m=0,1,2
-                     double vol = local_K[3] * u_local[0] + local_K[4] * u_local[1] + local_K[5] * u_local[2];
+                     // Optimization: K[4] (k=3, m=1) is mathematically 0 due to parity.
+                     double vol = local_K[3] * u_local[0] + local_K[5] * u_local[2];
                      double total_rhs = vol - surf_term_odd;
                      rhs_elem[3] = total_rhs * scaled_inv_mass[3];
                 }
