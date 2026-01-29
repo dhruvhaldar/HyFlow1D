@@ -147,7 +147,8 @@ void show_usage(const char* prog_name) {
               << "    " << Color::Yellow << "-h, --help" << Color::Reset << "      Show this help message\n"
               << "    " << Color::Yellow << "-v, --verbose" << Color::Reset << "   Show detailed step output (disables progress bar)\n"
               << "    " << Color::Yellow << "-o, --output" << Color::Reset << "    Specify output directory (default: output)\n"
-              << "    " << Color::Yellow << "-c, --clean" << Color::Reset << "     Clean output directory before running\n\n"
+              << "    " << Color::Yellow << "-c, --clean" << Color::Reset << "     Clean output directory before running\n"
+              << "    " << Color::Yellow << "-n, --dry-run" << Color::Reset << "   Print configuration and exit without running\n\n"
               << "  " << Color::Bold << "Simulation Details (Hardcoded):" << Color::Reset << "\n"
               << "    Domain: [0, 1] (FV: [0, 0.5], DG: [0.5, 1])\n"
               << "    Config: 50 FV cells, 10 DG elements (P=3)\n"
@@ -180,7 +181,7 @@ int levenshtein_distance(std::string_view s1, std::string_view s2) {
 }
 
 void suggest_flag(const std::string& invalid_flag) {
-    const std::vector<std::string> valid_flags = {"--help", "-h", "--verbose", "-v", "--output", "-o", "--clean", "-c"};
+    const std::vector<std::string> valid_flags = {"--help", "-h", "--verbose", "-v", "--output", "-o", "--clean", "-c", "--dry-run", "-n"};
     std::string best_match;
     int min_dist = 100;
 
@@ -264,6 +265,7 @@ int main(int argc, char* argv[]) {
         namespace fs = std::filesystem;
         bool verbose = false;
         bool clean_output = false;
+        bool dry_run = false;
         std::string output_dir = "output";
 
         // Detect TTY to auto-configure UX. Default to true to be safe (fail-open).
@@ -312,6 +314,8 @@ int main(int argc, char* argv[]) {
                 }
             } else if (strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--clean") == 0) {
                 clean_output = true;
+            } else if (strcmp(argv[i], "-n") == 0 || strcmp(argv[i], "--dry-run") == 0) {
+                dry_run = true;
             } else {
                 // Check if it looks like a flag
                 if (argv[i][0] == '-') {
@@ -445,6 +449,12 @@ int main(int argc, char* argv[]) {
                   << "  " << Color::Yellow << "dt:          " << Color::Reset << Color::Bold << std::defaultfloat << std::setprecision(6) << dt << Color::Reset << "\n"
                   << "  " << Color::Yellow << "Total Steps: " << Color::Reset << Color::Bold << total_steps << Color::Reset << "\n"
                   << std::endl;
+
+        if (dry_run) {
+            std::cout << Color::Green << "✔ Dry run complete." << Color::Reset << " Configuration valid.\n"
+                      << "  (No simulation performed, no files written)" << std::endl;
+            return 0;
+        }
 
         auto start_time = std::chrono::steady_clock::now();
 
