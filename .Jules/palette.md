@@ -48,3 +48,7 @@ This journal records critical UX and accessibility learnings for the HyFlow1D pr
 ## 2024-10-28 - Non-TTY Output Consistency
 **Learning:** CLI tools running in non-interactive environments (CI, pipes) often fall back to raw unformatted output, making logs hard to parse for humans. Consistent formatting (like fixed precision for timestamps) is just as important in logs as it is in interactive progress bars.
 **Action:** Ensure fallback (non-TTY) logging paths use the same formatting flags (precision, units) as their interactive counterparts.
+
+## 2024-10-28 - Dry Run Confidence
+**Learning:** Users hesitate to run simulations when they are unsure if the configuration (output path, parameters) is correct, especially for long-running processes.
+**Action:** Implement a `--dry-run` flag that parses arguments, validates the environment (permissions), and prints the configuration without executing the heavy computation.
