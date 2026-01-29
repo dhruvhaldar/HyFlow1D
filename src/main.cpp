@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <numeric>
 #include <cerrno>
+#include <cctype>
 
 // Custom numpunct to add thousands separator (comma)
 struct comma_numpunct : std::numpunct<char> {
@@ -195,6 +196,32 @@ void suggest_flag(const std::string& invalid_flag) {
     if (min_dist <= 3) {
          std::cerr << "       Did you mean '" << Color::Yellow << best_match << Color::Reset << "'?" << std::endl;
     }
+}
+
+// Security Helper: Escape shell arguments to prevent command injection in suggestions
+std::string shell_escape(const std::string& arg) {
+    if (arg.empty()) return "''";
+
+    // Check if safe (alphanumeric and some safe chars)
+    bool safe = true;
+    for (char c : arg) {
+        if (!isalnum(c) && c != '-' && c != '_' && c != '.' && c != '/') {
+            safe = false;
+            break;
+        }
+    }
+    if (safe) return arg;
+
+    std::string result = "'";
+    for (char c : arg) {
+        if (c == '\'') {
+            result += "'\\''";
+        } else {
+            result += c;
+        }
+    }
+    result += "'";
+    return result;
 }
 
 namespace {
@@ -464,7 +491,7 @@ int main(int argc, char* argv[]) {
                     script_path = "../scripts/plot_results.py";
                 }
                 std::string viz_cmd = "python3 " + script_path;
-                if (output_dir != "output") viz_cmd += " " + output_dir;
+                if (output_dir != "output") viz_cmd += " " + shell_escape(output_dir);
 
                 std::cerr << "Visualize with: " << Color::Yellow << viz_cmd << Color::Reset << std::endl;
 
@@ -528,7 +555,7 @@ int main(int argc, char* argv[]) {
 
         std::string viz_cmd = "python3 " + script_path;
         if (output_dir != "output") {
-            viz_cmd += " " + output_dir;
+            viz_cmd += " " + shell_escape(output_dir);
         }
         std::cout << "Visualize with: " << Color::Yellow << viz_cmd << Color::Reset << std::endl;
 
