@@ -21,3 +21,7 @@
 ## 2024-10-25 - Auto-Vectorization vs Scalar Replacement
 **Learning:** Contrary to the 2024-10-24 finding, applying manual scalar replacement (`u_prev`) in the FV solver loop caused a 60% performance regression (210k -> 83k ops/s) with GCC 13.3. The compiler successfully auto-vectorizes the simple array access `u[i] - u[i-1]`, while the manual scalar dependency inhibits vectorization.
 **Action:** Prioritize array indexing that enables auto-vectorization over manual scalar replacement for simple stencils. Verification via benchmarking is essential before applying such "optimizations".
+
+## 2024-10-26 - DG Stiffness Matrix Sparsity Unrolling
+**Learning:** The stiffness matrix $K_{km}$ has specific zero entries due to parity (k+m even -> 0). Exploiting this in the fully unrolled kernel for N=3 and N=4 saved ~3% overhead by removing 2 multiplies per element.
+**Action:** When unrolling matrix operations, always check for mathematical zeros (sparsity) that might not be obvious in the generic loop form.
