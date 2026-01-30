@@ -226,7 +226,26 @@ def plot_all():
         except Exception as e:
             print(f"{Colors.YELLOW}⚠️  Warning: Could not plot {f}: {e}{Colors.RESET}")
         
-    plt.axvline(x=0.5, color='gray', linestyle='--', alpha=0.7, label='Interface (FV | DG)')
+    # Palette UX: Visually distinguish the Hybrid Regions
+    # Domain values from src/main.cpp: x_start=0.0, x_interface=0.5, x_end=1.0
+    x_start, x_interface, x_end = 0.0, 0.5, 1.0
+
+    # Shade FV Region (Light Blue)
+    plt.axvspan(x_start, x_interface, color='blue', alpha=0.05)
+    # Shade DG Region (Light Orange)
+    plt.axvspan(x_interface, x_end, color='orange', alpha=0.05)
+
+    # Add Region Labels at the top of the plot
+    y_min, y_max = plt.ylim()
+    # Place labels at 95% of vertical range
+    y_pos = y_max - (y_max - y_min) * 0.05
+
+    plt.text((x_start + x_interface)/2, y_pos, "FV Region\n(Robust)",
+             ha='center', va='top', color='blue', alpha=0.6, fontsize=9, fontweight='bold')
+    plt.text((x_interface + x_end)/2, y_pos, "DG Region\n(Accurate)",
+             ha='center', va='top', color='darkorange', alpha=0.6, fontsize=9, fontweight='bold')
+
+    plt.axvline(x=x_interface, color='gray', linestyle='--', alpha=0.7, label='Interface (FV | DG)')
     plt.xlabel('Position (x)')
     plt.ylabel('Value (u)')
 
