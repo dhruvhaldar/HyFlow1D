@@ -61,3 +61,8 @@
 **Vulnerability:** The application accepted existing output directories with insecure permissions (e.g., world-readable) and wrote sensitive results into them without warning or enforcement.
 **Learning:** Checking permissions at creation time (via `umask` or `mkdir`) is insufficient because users may point the tool to pre-existing, insecure directories.
 **Prevention:** Explicitly check and enforce secure permissions (e.g., `0700`) on the output directory at runtime, even if it already exists, while being careful to avoid symlink attacks (do not modify if symlink).
+
+## 2026-01-30 - [Argument Injection in Helper Scripts]
+**Vulnerability:** The Python visualization script passed a user-controlled filename directly to an external command (`xdg-open` via `subprocess`). By providing a filename starting with `-` (e.g., `--version`), an attacker could trigger command-line flags on the external tool instead of opening a file.
+**Learning:** Functions that invoke shell commands or external processes often treat arguments starting with `-` as options, even if they are intended as filenames. This "Argument Injection" can alter the behavior of the called program.
+**Prevention:** Always sanitize or strictly format arguments passed to external commands. For filenames, ensure they are absolute paths (starting with `/`) or explicitly relative (`./filename`) so they are not interpreted as flags.

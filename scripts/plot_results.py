@@ -266,7 +266,9 @@ def plot_all():
         if args.preview:
             try:
                 print(f"{Colors.BLUE}👀 Opening preview...{Colors.RESET}")
-                open_file(args.output)
+                # Security: Use absolute path to prevent Argument Injection in open_file
+                # (e.g., if args.output starts with '-')
+                open_file(os.path.abspath(args.output))
             except Exception as e:
                 print(f"{Colors.YELLOW}⚠️  Warning: Could not open preview: {e}{Colors.RESET}")
 
