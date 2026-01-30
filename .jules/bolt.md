@@ -25,3 +25,7 @@
 ## 2024-10-26 - DG Stiffness Matrix Sparsity Unrolling
 **Learning:** The stiffness matrix $K_{km}$ has specific zero entries due to parity (k+m even -> 0). Exploiting this in the fully unrolled kernel for N=3 and N=4 saved ~3% overhead by removing 2 multiplies per element.
 **Action:** When unrolling matrix operations, always check for mathematical zeros (sparsity) that might not be obvious in the generic loop form.
+
+## 2024-10-27 - Fused Kernel Optimization
+**Learning:** Fusing the "Compute RHS" and "Update State" steps for the Finite Volume solver eliminated the intermediate `rhs` vector storage, reducing memory bandwidth pressure by ~60% (from 5 to 2 doubles/element/step). This yielded a ~40% speedup (14.5k -> 20.4k steps/s) by keeping `u` in cache/registers and updating in-place.
+**Action:** When an algorithm involves multiple passes over large arrays (e.g., compute then update), investigate if the steps can be fused to reduce memory traffic, even if it requires carrying dependency state (like `u_prev`) manually.

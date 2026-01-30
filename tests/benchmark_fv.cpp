@@ -18,28 +18,45 @@ int main() {
     // Initialize with some data
     fv.set_initial_condition([](double x) { return std::sin(10.0 * x); });
 
+    int iterations = 50000;
+
+    // --- Baseline: Split compute_rhs + update_state ---
     // Warmup
     for (int i = 0; i < 100; ++i) {
         fv.compute_rhs(0.0, 1.0);
+        fv.update_state(0.001);
     }
 
-    int iterations = 50000;
     auto start_time = std::chrono::high_resolution_clock::now();
-
     for (int i = 0; i < iterations; ++i) {
         fv.compute_rhs(0.0, 1.0);
+        fv.update_state(0.001);
+    }
+    auto end_time = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed_split = end_time - start_time;
+
+    // --- Optimized: Fused step ---
+    // Warmup
+    for (int i = 0; i < 100; ++i) {
+        fv.step(0.001, 0.0, 1.0);
     }
 
-    auto end_time = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = end_time - start_time;
-
-    double ops_per_sec = iterations / elapsed.count();
-    double ns_per_op = (elapsed.count() * 1e9) / iterations;
+    start_time = std::chrono::high_resolution_clock::now();
+    for (int i = 0; i < iterations; ++i) {
+        fv.step(0.001, 0.0, 1.0);
+    }
+    end_time = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed_fused = end_time - start_time;
 
     std::cout << "FV Benchmark (" << n_elements << " elements, " << iterations << " iterations)" << std::endl;
-    std::cout << "Total Time: " << elapsed.count() << " s" << std::endl;
-    std::cout << "Throughput: " << ops_per_sec << " calls/s" << std::endl;
-    std::cout << "Avg Latency: " << ns_per_op << " ns/call" << std::endl;
+
+    std::cout << "Split (compute+update): " << elapsed_split.count() << " s ("
+              << (iterations / elapsed_split.count()) << " steps/s)" << std::endl;
+
+    std::cout << "Fused (step):           " << elapsed_fused.count() << " s ("
+              << (iterations / elapsed_fused.count()) << " steps/s)" << std::endl;
+
+    std::cout << "Speedup: " << (elapsed_split.count() / elapsed_fused.count()) << "x" << std::endl;
 
     return 0;
 }

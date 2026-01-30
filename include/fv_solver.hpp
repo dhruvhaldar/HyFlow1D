@@ -23,6 +23,7 @@ public:
     void set_initial_condition(double (*func)(double)) override;
     void compute_rhs(double t, double advection_speed) override;
     void update_state(double dt) override;
+    void step(double dt, double t, double advection_speed) override;
     std::vector<std::pair<double, double>> get_solution() const override;
 
     double get_left_boundary_value() const override;
