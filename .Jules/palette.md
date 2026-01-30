@@ -52,3 +52,7 @@ This journal records critical UX and accessibility learnings for the HyFlow1D pr
 ## 2024-10-28 - Dry Run Confidence
 **Learning:** Users hesitate to run simulations when they are unsure if the configuration (output path, parameters) is correct, especially for long-running processes.
 **Action:** Implement a `--dry-run` flag that parses arguments, validates the environment (permissions), and prints the configuration without executing the heavy computation.
+
+## 2024-05-28 - Visualizing Hybrid Domains
+**Learning:** Visualizing domain properties (like FV vs DG regions) directly on the plot significantly improves understandability of hybrid solvers, making the "Hybrid" nature of the algorithm immediately apparent.
+**Action:** Always look for ways to visually map physical/algorithmic constraints onto the data visualization.
