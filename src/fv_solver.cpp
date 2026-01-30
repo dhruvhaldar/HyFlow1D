@@ -82,6 +82,35 @@ void FiniteVolumeSolver::update_state(double dt) {
     }
 }
 
+void FiniteVolumeSolver::step(double dt, double /*t*/, double advection_speed) {
+    if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
+
+    // Fused Compute RHS + Update State
+    // Optimization: This avoids writing to and reading from the 'rhs' vector,
+    // reducing memory bandwidth usage by eliminating the intermediate storage.
+
+    const double coeff = -advection_speed / dx;
+    double* RESTRICT u_ptr = u.data();
+
+    // Peel first iteration
+    if (n_elements > 0) {
+        // RHS[0] = coeff * (u[0] - left_ghost)
+        // u[0] += dt * RHS[0]
+        double u_curr = u_ptr[0];
+        double rhs_val = coeff * (u_curr - left_ghost);
+        u_ptr[0] = u_curr + dt * rhs_val;
+
+        double u_prev = u_curr; // Carry OLD value
+
+        for (int i = 1; i < n_elements; ++i) {
+            u_curr = u_ptr[i];
+            rhs_val = coeff * (u_curr - u_prev);
+            u_ptr[i] = u_curr + dt * rhs_val;
+            u_prev = u_curr;
+        }
+    }
+}
+
 std::vector<std::pair<double, double>> FiniteVolumeSolver::get_solution() const {
     if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
     std::vector<std::pair<double, double>> sol;
