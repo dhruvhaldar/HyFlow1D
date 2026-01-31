@@ -61,3 +61,8 @@
 **Vulnerability:** The application accepted existing output directories with insecure permissions (e.g., world-readable) and wrote sensitive results into them without warning or enforcement.
 **Learning:** Checking permissions at creation time (via `umask` or `mkdir`) is insufficient because users may point the tool to pre-existing, insecure directories.
 **Prevention:** Explicitly check and enforce secure permissions (e.g., `0700`) on the output directory at runtime, even if it already exists, while being careful to avoid symlink attacks (do not modify if symlink).
+
+## 2025-01-28 - [TOCTOU in Directory Permission Hardening]
+**Vulnerability:** The code attempted to secure existing output directories by checking `!is_symlink` before calling `fs::permissions`. This created a TOCTOU race condition where the directory could be replaced by a symlink between the check and the call, causing `fs::permissions` to modify the target file (potentially sensitive).
+**Learning:** Security checks (like `is_symlink`) are not atomic with subsequent operations. Relying on them for security is flawed.
+**Prevention:** Use atomic flags like `fs::perm_options::nofollow` in the operation itself (`fs::permissions`) to enforce constraints at the kernel/syscall level, ensuring the operation fails safely if the target is a symlink.
