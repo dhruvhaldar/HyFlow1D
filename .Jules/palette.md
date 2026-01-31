@@ -52,3 +52,7 @@ This journal records critical UX and accessibility learnings for the HyFlow1D pr
 ## 2024-10-28 - Dry Run Confidence
 **Learning:** Users hesitate to run simulations when they are unsure if the configuration (output path, parameters) is correct, especially for long-running processes.
 **Action:** Implement a `--dry-run` flag that parses arguments, validates the environment (permissions), and prints the configuration without executing the heavy computation.
+
+## 2024-10-28 - Semantic Visual Context
+**Learning:** In hybrid or multi-physics simulations, users often struggle to correlate plot features with the underlying domain method (e.g., "Why is this region smooth vs. oscillatory?"). Relying solely on legends forces mental mapping.
+**Action:** Use subtle background shading and explicit text annotations directly on the plot to visually segment the domain, making the "Hybrid" nature of the solver immediately intuitive without requiring external documentation.

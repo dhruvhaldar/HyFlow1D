@@ -203,6 +203,28 @@ def plot_all():
 
     plt.figure(figsize=(10, 6))
 
+    # Palette UX: Background shading for Hybrid Regions
+    # Determine domain bounds from loaded data to accurately shade regions
+    valid_dfs = [df for _, df, _ in loaded_data if df is not None]
+    if valid_dfs:
+        x_min = min(df['x'].min() for df in valid_dfs)
+        x_max = max(df['x'].max() for df in valid_dfs)
+        x_interface = 0.5  # Hardcoded interface position matching solver config
+
+        # Shade FV Region (Left) - Light Blue
+        plt.axvspan(x_min, x_interface, color='#e6f3ff', alpha=0.5)
+        plt.text((x_min + x_interface)/2, 0.95, 'FV Region',
+                 horizontalalignment='center', verticalalignment='top',
+                 transform=plt.gca().get_xaxis_transform(),
+                 fontsize=10, color='#0066cc', weight='bold', alpha=0.7)
+
+        # Shade DG Region (Right) - Light Orange
+        plt.axvspan(x_interface, x_max, color='#fff5e6', alpha=0.5)
+        plt.text((x_interface + x_max)/2, 0.95, 'DG Region',
+                 horizontalalignment='center', verticalalignment='top',
+                 transform=plt.gca().get_xaxis_transform(),
+                 fontsize=10, color='#cc6600', weight='bold', alpha=0.7)
+
     # Cycle through line styles for better accessibility (colorblind friendly)
     line_styles = cycle(['-', '--', '-.', ':'])
     
