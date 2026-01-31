@@ -53,13 +53,10 @@ void HybridDomain::step(double dt, double advection_speed) {
     // Exchange boundaries before computing RHS
     exchange_boundaries();
     
-    // Compute RHS for both
-    left_domain->compute_rhs(0.0, advection_speed); // Time t not used
-    right_domain->compute_rhs(0.0, advection_speed);
-    
-    // Update both
-    left_domain->update_state(dt);
-    right_domain->update_state(dt);
+    // Perform full time step for both domains
+    // This allows child solvers to use fused optimizations if available
+    left_domain->step(dt, 0.0, advection_speed);
+    right_domain->step(dt, 0.0, advection_speed);
 }
 
 std::vector<std::pair<double, double>> HybridDomain::get_solution() const {

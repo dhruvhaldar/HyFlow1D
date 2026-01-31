@@ -25,3 +25,7 @@
 ## 2024-10-26 - DG Stiffness Matrix Sparsity Unrolling
 **Learning:** The stiffness matrix $K_{km}$ has specific zero entries due to parity (k+m even -> 0). Exploiting this in the fully unrolled kernel for N=3 and N=4 saved ~3% overhead by removing 2 multiplies per element.
 **Action:** When unrolling matrix operations, always check for mathematical zeros (sparsity) that might not be obvious in the generic loop form.
+
+## 2024-10-27 - Fused Loop Vectorization with Unrolling
+**Learning:** Fusing a stencil update loop `u[i] += C * (u[i] - u[i-1])` creates a loop-carried dependency on `u[i-1]` (the old value) if updated in-place. This kills auto-vectorization, causing a ~50% regression compared to separate loops. However, manually unrolling the loop (e.g., 4-way) breaks the dependency chain within the iteration block, allowing the compiler to vectorize or pipeline the operations, yielding a ~20% speedup over the separate loops baseline.
+**Action:** When fusing stencil loops with dependencies, explicitly unroll the loop to expose parallelism to the compiler.

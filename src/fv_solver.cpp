@@ -70,6 +70,51 @@ void FiniteVolumeSolver::compute_rhs(double /*t*/, double a) {
     }
 }
 
+void FiniteVolumeSolver::step(double dt, double /*t*/, double a) {
+    if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
+
+    // Fused compute_rhs and update_state for performance.
+    // Avoids writing to intermediate rhs vector and reading it back.
+    // Standard 1st Order Upwind: u_i += dt * (-a/dx * (u_i - u_{i-1}))
+
+    const double coeff = -a / dx;
+    double* RESTRICT u_ptr = u.data();
+
+    if (n_elements > 0) {
+        // Handle first element (depends on ghost)
+        double u_prev_val = u_ptr[0]; // Save old u[0]
+        double rhs_0 = coeff * (u_prev_val - left_ghost);
+        u_ptr[0] += dt * rhs_0;
+
+        // Loop uses prev_u as the "old u[i-1]"
+        double prev_u = u_prev_val;
+
+        int i = 1;
+        // 4-way unrolling to break dependency chain and enable vectorization
+        for (; i <= n_elements - 4; i += 4) {
+            double u0 = u_ptr[i];
+            double u1 = u_ptr[i+1];
+            double u2 = u_ptr[i+2];
+            double u3 = u_ptr[i+3];
+
+            u_ptr[i]   += dt * coeff * (u0 - prev_u);
+            u_ptr[i+1] += dt * coeff * (u1 - u0);
+            u_ptr[i+2] += dt * coeff * (u2 - u1);
+            u_ptr[i+3] += dt * coeff * (u3 - u2);
+
+            prev_u = u3;
+        }
+
+        // Tail cleanup
+        for (; i < n_elements; ++i) {
+            double curr_u = u_ptr[i];
+            double rhs = coeff * (curr_u - prev_u);
+            u_ptr[i] += dt * rhs;
+            prev_u = curr_u;
+        }
+    }
+}
+
 void FiniteVolumeSolver::update_state(double dt) {
     if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
 

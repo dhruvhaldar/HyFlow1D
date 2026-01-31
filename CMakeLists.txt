@@ -71,3 +71,4 @@ add_executable(benchmark_dg tests/benchmark_dg.cpp src/dg_solver.cpp src/numeric
 add_executable(benchmark_update tests/benchmark_update.cpp src/dg_solver.cpp src/numerics.cpp)
 add_executable(benchmark_plot tests/benchmark_plot.cpp src/dg_solver.cpp src/numerics.cpp)
 add_executable(benchmark_fv tests/benchmark_fv.cpp src/fv_solver.cpp)
+add_executable(benchmark_step tests/benchmark_step.cpp src/fv_solver.cpp src/dg_solver.cpp src/numerics.cpp)
