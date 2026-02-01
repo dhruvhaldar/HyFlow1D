@@ -52,3 +52,7 @@ This journal records critical UX and accessibility learnings for the HyFlow1D pr
 ## 2024-10-28 - Dry Run Confidence
 **Learning:** Users hesitate to run simulations when they are unsure if the configuration (output path, parameters) is correct, especially for long-running processes.
 **Action:** Implement a `--dry-run` flag that parses arguments, validates the environment (permissions), and prints the configuration without executing the heavy computation.
+
+## 2024-10-29 - Contextual Shading in Plots
+**Learning:** Adding semantic background shading to plots (e.g., distinguishing solver regions) transforms a raw data graph into an educational tool, reducing the cognitive load required to map "x < 0.5" to "Finite Volume".
+**Action:** Use `axvspan` with subtle colors to visually segment domains in multi-physics or hybrid method visualizations.
