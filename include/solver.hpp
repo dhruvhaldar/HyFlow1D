@@ -25,6 +25,13 @@ public:
     // Update state: u = u + dt * rhs
     virtual void update_state(double dt) = 0;
 
+    // Perform a full time step (compute_rhs + update_state)
+    // Can be overridden for fused optimizations.
+    virtual void step(double dt, double advection_speed) {
+        compute_rhs(0.0, advection_speed);
+        update_state(dt);
+    }
+
     // Get the solution at cell centers (for plotting)
     // Returns pairs of (x, u)
     virtual std::vector<std::pair<double, double>> get_solution() const = 0;
