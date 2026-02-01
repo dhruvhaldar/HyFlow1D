@@ -61,3 +61,8 @@
 **Vulnerability:** The application accepted existing output directories with insecure permissions (e.g., world-readable) and wrote sensitive results into them without warning or enforcement.
 **Learning:** Checking permissions at creation time (via `umask` or `mkdir`) is insufficient because users may point the tool to pre-existing, insecure directories.
 **Prevention:** Explicitly check and enforce secure permissions (e.g., `0700`) on the output directory at runtime, even if it already exists, while being careful to avoid symlink attacks (do not modify if symlink).
+
+## 2025-01-27 - [Null Pointer Dereference in Hybrid Coupling]
+**Vulnerability:** The `HybridDomain` constructor blindly moved `std::unique_ptr` arguments without checking if they were null. Passing `nullptr` would cause a Segmentation Fault (DoS) upon later usage.
+**Learning:** Moving smart pointers transfers ownership but does not guarantee the source was valid. Initializer lists are powerful but can bypass body validation if not careful, though in this case validation in the body was simply missing.
+**Prevention:** Always validate pointer arguments in constructors, even (and especially) when using smart pointers and move semantics. "Trust nothing, verify everything" applies to internal APIs as well.

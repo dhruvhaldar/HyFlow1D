@@ -66,6 +66,9 @@ add_test(NAME validation_test COMMAND test_validation)
 add_executable(test_security tests/test_security.cpp src/fv_solver.cpp src/dg_solver.cpp src/numerics.cpp)
 add_test(NAME security_test COMMAND test_security)
 
+add_executable(test_hybrid_security tests/test_hybrid_security.cpp src/fv_solver.cpp src/dg_solver.cpp src/numerics.cpp src/hybrid_coupling.cpp)
+add_test(NAME hybrid_security_test COMMAND test_hybrid_security)
+
 # Benchmark (optional, not run by ctest by default, but built)
 add_executable(benchmark_dg tests/benchmark_dg.cpp src/dg_solver.cpp src/numerics.cpp)
 add_executable(benchmark_update tests/benchmark_update.cpp src/dg_solver.cpp src/numerics.cpp)
