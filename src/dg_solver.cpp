@@ -204,7 +204,6 @@ namespace {
     void compute_rhs_optimized(int n_elements,
                                const double* RESTRICT u,
                                double* RESTRICT rhs,
-                               const double* RESTRICT stiffness_matrix,
                                double dx,
                                double left_ghost,
                                double a) {
@@ -219,13 +218,10 @@ namespace {
             scaled_inv_mass[k] = (2.0 * k + 1.0) * a_over_dx;
         }
 
-        // Optimization: Copy stiffness matrix to stack to ensure fast access and help compiler with aliasing.
-        // Size is N*(N-1)/2. For N=4, size is 6.
-        constexpr int K_size = (N * (N - 1) / 2);
-        // Handle N=1 where K_size is 0.
-        constexpr int local_K_size = (K_size > 0) ? K_size : 1;
-        double local_K[local_K_size];
-        for (int i = 0; i < K_size; ++i) local_K[i] = stiffness_matrix[i];
+        // Optimization: Stiffness matrix values are derived from Legendre polynomial properties.
+        // K_km = Integral(P_m * P'_k) = 2.0 if (k > m) and (k+m) is odd, else 0.0.
+        // We can skip loading the stiffness matrix entirely and hardcode these values (0.0 or 2.0).
+        // This reduces memory bandwidth and register pressure.
 
         for (int i = 0; i < n_elements; ++i) {
             double u_left_boundary_val = prev_boundary_val;
@@ -288,40 +284,36 @@ namespace {
                 }
 
                 if constexpr (N >= 2) {
-                     // k=1, m=0
-                     double vol = local_K[0] * u_local[0];
+                     // k=1, m=0. K[1,0]=2.
+                     double vol = 2.0 * u_local[0];
                      double total_rhs = vol - surf_term_odd;
                      rhs_elem[1] = total_rhs * scaled_inv_mass[1];
                 }
                 if constexpr (N >= 3) {
-                     // k=2, m=0,1
-                     // Optimization: K[1] (k=2, m=0) is mathematically 0 due to parity.
-                     double vol = local_K[2] * u_local[1];
+                     // k=2, m=0,1. K[2,0]=0, K[2,1]=2.
+                     double vol = 2.0 * u_local[1];
                      double total_rhs = vol - surf_term_even;
                      rhs_elem[2] = total_rhs * scaled_inv_mass[2];
                 }
                 if constexpr (N >= 4) {
-                     // k=3, m=0,1,2
-                     // Optimization: K[4] (k=3, m=1) is mathematically 0 due to parity.
-                     double vol = local_K[3] * u_local[0] + local_K[5] * u_local[2];
+                     // k=3, m=0,1,2. K[3,0]=2, K[3,1]=0, K[3,2]=2.
+                     double vol = 2.0 * (u_local[0] + u_local[2]);
                      double total_rhs = vol - surf_term_odd;
                      rhs_elem[3] = total_rhs * scaled_inv_mass[3];
                 }
             } else {
                 // Generic fallback for N > 4
-                const double* K_ptr = local_K;
+                // K_km = 2 if k+m is odd and k>m.
                 for (int k = 0; k < N; ++k) {
                     double volume_int = 0.0;
-                    // Inner loop m < k matches the packed row length of k.
                     for (int m = 0; m < k; ++m) {
-                         volume_int += K_ptr[m] * u_local[m];
+                         if ((k + m) % 2 != 0) {
+                             volume_int += 2.0 * u_local[m];
+                         }
                     }
 
                     double total_rhs = volume_int - ((k % 2 == 0) ? surf_term_even : surf_term_odd);
                     rhs_elem[k] = total_rhs * scaled_inv_mass[k];
-
-                    // Advance pointer by row length (k) for packed storage
-                    K_ptr += k;
                 }
             }
         }
@@ -330,7 +322,6 @@ namespace {
     template <int N>
     void step_optimized(int n_elements,
                                double* RESTRICT u,
-                               const double* RESTRICT stiffness_matrix,
                                double dx,
                                double left_ghost,
                                double a,
@@ -344,11 +335,8 @@ namespace {
             scaled_inv_mass[k] = (2.0 * k + 1.0) * a_over_dx;
         }
 
-        // Optimization: Copy stiffness matrix to stack
-        constexpr int K_size = (N * (N - 1) / 2);
-        constexpr int local_K_size = (K_size > 0) ? K_size : 1;
-        double local_K[local_K_size];
-        for (int i = 0; i < K_size; ++i) local_K[i] = stiffness_matrix[i];
+        // Optimization: Stiffness matrix values are hardcoded based on Legendre properties.
+        // Removed local_K array to save stack space and loads.
 
         for (int i = 0; i < n_elements; ++i) {
             double u_left_boundary_val = prev_boundary_val;
@@ -402,34 +390,34 @@ namespace {
                 }
 
                 if constexpr (N >= 2) {
-                     // k=1
-                     double vol = local_K[0] * u_local[0];
+                     // k=1, m=0. K[1,0]=2
+                     double vol = 2.0 * u_local[0];
                      double total_rhs = vol - surf_term_odd;
                      u_elem[1] += dt * total_rhs * scaled_inv_mass[1];
                 }
                 if constexpr (N >= 3) {
-                     // k=2
-                     double vol = local_K[2] * u_local[1];
+                     // k=2, m=0,1. K[2,1]=2.
+                     double vol = 2.0 * u_local[1];
                      double total_rhs = vol - surf_term_even;
                      u_elem[2] += dt * total_rhs * scaled_inv_mass[2];
                 }
                 if constexpr (N >= 4) {
-                     // k=3
-                     double vol = local_K[3] * u_local[0] + local_K[5] * u_local[2];
+                     // k=3, m=0,1,2. K[3,0]=2, K[3,2]=2.
+                     double vol = 2.0 * (u_local[0] + u_local[2]);
                      double total_rhs = vol - surf_term_odd;
                      u_elem[3] += dt * total_rhs * scaled_inv_mass[3];
                 }
             } else {
                 // Generic fallback
-                const double* K_ptr = local_K;
                 for (int k = 0; k < N; ++k) {
                     double volume_int = 0.0;
                     for (int m = 0; m < k; ++m) {
-                         volume_int += K_ptr[m] * u_local[m];
+                        if ((k + m) % 2 != 0) {
+                             volume_int += 2.0 * u_local[m];
+                        }
                     }
                     double total_rhs = volume_int - ((k % 2 == 0) ? surf_term_even : surf_term_odd);
                     u_elem[k] += dt * total_rhs * scaled_inv_mass[k];
-                    K_ptr += k;
                 }
             }
         }
@@ -444,16 +432,16 @@ void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
     // n_modes = p_order + 1.
     switch (n_modes) {
         case 1: // P=0
-            compute_rhs_optimized<1>(n_elements, u.data(), rhs.data(), stiffness_matrix.data(), dx, left_ghost, a);
+            compute_rhs_optimized<1>(n_elements, u.data(), rhs.data(), dx, left_ghost, a);
             return;
         case 2: // P=1
-            compute_rhs_optimized<2>(n_elements, u.data(), rhs.data(), stiffness_matrix.data(), dx, left_ghost, a);
+            compute_rhs_optimized<2>(n_elements, u.data(), rhs.data(), dx, left_ghost, a);
             return;
         case 3: // P=2
-            compute_rhs_optimized<3>(n_elements, u.data(), rhs.data(), stiffness_matrix.data(), dx, left_ghost, a);
+            compute_rhs_optimized<3>(n_elements, u.data(), rhs.data(), dx, left_ghost, a);
             return;
         case 4: // P=3
-            compute_rhs_optimized<4>(n_elements, u.data(), rhs.data(), stiffness_matrix.data(), dx, left_ghost, a);
+            compute_rhs_optimized<4>(n_elements, u.data(), rhs.data(), dx, left_ghost, a);
             return;
     }
 
@@ -546,16 +534,16 @@ void DiscontinuousGalerkinSolver::step(double dt, double advection_speed) {
     if (advection_speed >= 0.0) {
         switch (n_modes) {
             case 1: // P=0
-                step_optimized<1>(n_elements, u.data(), stiffness_matrix.data(), dx, left_ghost, advection_speed, dt);
+                step_optimized<1>(n_elements, u.data(), dx, left_ghost, advection_speed, dt);
                 return;
             case 2: // P=1
-                step_optimized<2>(n_elements, u.data(), stiffness_matrix.data(), dx, left_ghost, advection_speed, dt);
+                step_optimized<2>(n_elements, u.data(), dx, left_ghost, advection_speed, dt);
                 return;
             case 3: // P=2
-                step_optimized<3>(n_elements, u.data(), stiffness_matrix.data(), dx, left_ghost, advection_speed, dt);
+                step_optimized<3>(n_elements, u.data(), dx, left_ghost, advection_speed, dt);
                 return;
             case 4: // P=3
-                step_optimized<4>(n_elements, u.data(), stiffness_matrix.data(), dx, left_ghost, advection_speed, dt);
+                step_optimized<4>(n_elements, u.data(), dx, left_ghost, advection_speed, dt);
                 return;
         }
     }
