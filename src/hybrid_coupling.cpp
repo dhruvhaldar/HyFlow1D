@@ -1,7 +1,15 @@
 #include "hybrid_coupling.hpp"
+#include <stdexcept>
 
 HybridDomain::HybridDomain(std::unique_ptr<Solver1D> left, std::unique_ptr<Solver1D> right)
-    : left_domain(std::move(left)), right_domain(std::move(right)) {}
+    : left_domain(std::move(left)), right_domain(std::move(right)) {
+    if (!left_domain) {
+        throw std::invalid_argument("Left domain solver cannot be null.");
+    }
+    if (!right_domain) {
+        throw std::invalid_argument("Right domain solver cannot be null.");
+    }
+}
 
 void HybridDomain::exchange_boundaries() {
     // Left domain's right ghost value comes from Right domain's left boundary
