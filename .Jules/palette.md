@@ -52,3 +52,7 @@ This journal records critical UX and accessibility learnings for the HyFlow1D pr
 ## 2024-10-28 - Dry Run Confidence
 **Learning:** Users hesitate to run simulations when they are unsure if the configuration (output path, parameters) is correct, especially for long-running processes.
 **Action:** Implement a `--dry-run` flag that parses arguments, validates the environment (permissions), and prints the configuration without executing the heavy computation.
+
+## 2026-02-02 - Terminal Visualization
+**Learning:** Visualizing data directly in the terminal (e.g., via sparklines) bridges the gap between running a simulation and opening an external viewer. It provides immediate visual confirmation of physical behavior (e.g., "is the wave moving?") without context switching.
+**Action:** Use simple ASCII/Unicode visualizations for 1D data series in CLI tools where graphical output is secondary or delayed.

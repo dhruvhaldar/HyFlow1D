@@ -23,6 +23,7 @@ class Colors:
 
     BOLD_RED     = "\033[1;31m" if _enabled else ""
     BOLD_GREEN   = "\033[1;32m" if _enabled else ""
+    CYAN         = "\033[36m"   if _enabled else ""
 
 # Palette: Smart Argument Parser for "Did you mean?" suggestions
 class SmartArgumentParser(argparse.ArgumentParser):
@@ -86,6 +87,42 @@ def open_file(filepath):
         os.startfile(filepath)
     else:                                   # linux variants
         subprocess.call(('xdg-open', filepath))
+
+# Palette: Sparkline Generator for Terminal
+def generate_sparkline(data, width=15):
+    """Generates an ASCII sparkline from a list of numbers."""
+    if not len(data): return ""
+
+    # Normalize data for this sparkline
+    mn, mx = min(data), max(data)
+    extent = mx - mn
+
+    # If flat line, return consistent dashes
+    if extent == 0:
+        return "─" * width
+
+    # Resample to fit width
+    n = len(data)
+    # Use max-pooling for downsampling to preserve peaks (important for advection pulses)
+    sampled = []
+    for i in range(width):
+        start = int(i * n / width)
+        end = int((i + 1) * n / width)
+        chunk = data[start:end]
+        if len(chunk) > 0:
+            sampled.append(max(chunk)) # Max pool to see peaks
+        else:
+            sampled.append(mn)
+
+    chars = " ▂▃▄▅▆▇█"
+    spark = []
+    for val in sampled:
+        # Normalize 0..7
+        idx = int(7 * (val - mn) / extent)
+        idx = max(0, min(7, idx)) # Clamp
+        spark.append(chars[idx])
+
+    return "".join(spark)
 
 def plot_all():
     parser = SmartArgumentParser(
@@ -172,8 +209,12 @@ def plot_all():
             df = pd.read_csv(f, comment='#')
             min_u, max_u = df['u'].min(), df['u'].max()
             stats = f"[min: {min_u:+.2f}, max: {max_u:+.2f}]"
+
+            # Palette UX: Generate Sparkline
+            spark = generate_sparkline(df['u'].tolist())
+
             loaded_data.append((f, df, t_val))
-            print(f"   • {Colors.BLUE}{fname:<20}{Colors.RESET} ({t_str}) {Colors.YELLOW}{stats}{Colors.RESET}")
+            print(f"   • {Colors.BLUE}{fname:<20}{Colors.RESET} ({t_str}) {Colors.YELLOW}{stats}{Colors.RESET}  {Colors.CYAN}{spark}{Colors.RESET}")
 
             # Track peak for analysis
             if first_valid_max is None:
