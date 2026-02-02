@@ -326,6 +326,114 @@ namespace {
             }
         }
     }
+
+    template <int N>
+    void step_optimized(int n_elements,
+                               double* RESTRICT u,
+                               const double* RESTRICT stiffness_matrix,
+                               double dx,
+                               double left_ghost,
+                               double a,
+                               double dt) {
+        double prev_boundary_val = left_ghost;
+
+        // Optimization: Precompute scaled inverse mass matrix
+        double scaled_inv_mass[N];
+        double a_over_dx = a / dx;
+        for (int k = 0; k < N; ++k) {
+            scaled_inv_mass[k] = (2.0 * k + 1.0) * a_over_dx;
+        }
+
+        // Optimization: Copy stiffness matrix to stack
+        constexpr int K_size = (N * (N - 1) / 2);
+        constexpr int local_K_size = (K_size > 0) ? K_size : 1;
+        double local_K[local_K_size];
+        for (int i = 0; i < K_size; ++i) local_K[i] = stiffness_matrix[i];
+
+        for (int i = 0; i < n_elements; ++i) {
+            double u_left_boundary_val = prev_boundary_val;
+
+            // Optimization: Load u into local registers/stack
+            double u_local[N];
+            double u_right_boundary_val = 0.0;
+            double* u_elem = &u[i * N];
+
+            if constexpr (N == 1) {
+                u_local[0] = u_elem[0];
+                u_right_boundary_val = u_local[0];
+            } else if constexpr (N == 2) {
+                u_local[0] = u_elem[0];
+                u_local[1] = u_elem[1];
+                u_right_boundary_val = u_local[0] + u_local[1];
+            } else if constexpr (N == 3) {
+                u_local[0] = u_elem[0];
+                u_local[1] = u_elem[1];
+                u_local[2] = u_elem[2];
+                u_right_boundary_val = u_local[0] + u_local[1] + u_local[2];
+            } else if constexpr (N == 4) {
+                u_local[0] = u_elem[0];
+                u_local[1] = u_elem[1];
+                u_local[2] = u_elem[2];
+                u_local[3] = u_elem[3];
+                u_right_boundary_val = u_local[0] + u_local[1] + u_local[2] + u_local[3];
+            } else {
+                for (int k = 0; k < N; ++k) {
+                     double val = u_elem[k];
+                     u_local[k] = val;
+                     u_right_boundary_val += val;
+                }
+            }
+            prev_boundary_val = u_right_boundary_val;
+
+            // Surface terms
+            double val_surf_left = u_left_boundary_val;
+            double val_surf_right = u_right_boundary_val;
+
+            double surf_term_even = val_surf_right - val_surf_left;
+            double surf_term_odd  = val_surf_right + val_surf_left;
+
+            if constexpr (N <= 4) {
+                // k=0 (Always present)
+                {
+                    double vol = 0.0;
+                    double total_rhs = vol - surf_term_even;
+                    // Fused Update
+                    u_elem[0] += dt * total_rhs * scaled_inv_mass[0];
+                }
+
+                if constexpr (N >= 2) {
+                     // k=1
+                     double vol = local_K[0] * u_local[0];
+                     double total_rhs = vol - surf_term_odd;
+                     u_elem[1] += dt * total_rhs * scaled_inv_mass[1];
+                }
+                if constexpr (N >= 3) {
+                     // k=2
+                     double vol = local_K[2] * u_local[1];
+                     double total_rhs = vol - surf_term_even;
+                     u_elem[2] += dt * total_rhs * scaled_inv_mass[2];
+                }
+                if constexpr (N >= 4) {
+                     // k=3
+                     double vol = local_K[3] * u_local[0] + local_K[5] * u_local[2];
+                     double total_rhs = vol - surf_term_odd;
+                     u_elem[3] += dt * total_rhs * scaled_inv_mass[3];
+                }
+            } else {
+                // Generic fallback
+                const double* K_ptr = local_K;
+                for (int k = 0; k < N; ++k) {
+                    double volume_int = 0.0;
+                    for (int m = 0; m < k; ++m) {
+                         volume_int += K_ptr[m] * u_local[m];
+                    }
+                    double total_rhs = volume_int - ((k % 2 == 0) ? surf_term_even : surf_term_odd);
+                    u_elem[k] += dt * total_rhs * scaled_inv_mass[k];
+                    K_ptr += k;
+                }
+            }
+        }
+    }
 }
 
 void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
@@ -429,6 +537,32 @@ void DiscontinuousGalerkinSolver::update_state(double dt) {
     for (size_t idx = 0; idx < total_size; ++idx) {
         u_ptr[idx] += dt * rhs_ptr[idx];
     }
+}
+
+void DiscontinuousGalerkinSolver::step(double dt, double advection_speed) {
+    if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
+
+    // Optimized kernel assumes positive advection speed (L->R sweep)
+    if (advection_speed >= 0.0) {
+        switch (n_modes) {
+            case 1: // P=0
+                step_optimized<1>(n_elements, u.data(), stiffness_matrix.data(), dx, left_ghost, advection_speed, dt);
+                return;
+            case 2: // P=1
+                step_optimized<2>(n_elements, u.data(), stiffness_matrix.data(), dx, left_ghost, advection_speed, dt);
+                return;
+            case 3: // P=2
+                step_optimized<3>(n_elements, u.data(), stiffness_matrix.data(), dx, left_ghost, advection_speed, dt);
+                return;
+            case 4: // P=3
+                step_optimized<4>(n_elements, u.data(), stiffness_matrix.data(), dx, left_ghost, advection_speed, dt);
+                return;
+        }
+    }
+
+    // Generic Fallback: separate compute_rhs and update_state
+    compute_rhs(0.0, advection_speed);
+    update_state(dt);
 }
 
 std::vector<std::pair<double, double>> DiscontinuousGalerkinSolver::get_solution() const {
