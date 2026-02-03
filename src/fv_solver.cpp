@@ -82,6 +82,33 @@ void FiniteVolumeSolver::update_state(double dt) {
     }
 }
 
+void FiniteVolumeSolver::step(double dt, double advection_speed) {
+    if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
+
+    if (advection_speed < 0) {
+        throw std::runtime_error("FiniteVolumeSolver: Negative advection speed not supported in upwind scheme.");
+    }
+
+    // Optimization: Fused Step
+    // Combines compute_rhs and update_state into a single pass to reduce memory bandwidth.
+    // Standard approach: Read u -> Write rhs; Read u, Read rhs -> Write u. (5 streams)
+    // Fused approach: Read u -> Write u. (2 streams)
+    // Scheme: u_i^{n+1} = u_i^n - (a * dt / dx) * (u_i^n - u_{i-1}^n)
+
+    double* RESTRICT u_ptr = u.data();
+    const double coeff = advection_speed * dt / dx;
+    double prev_u = left_ghost;
+
+    // Use a local variable to carry the dependency u_{i-1}^n across iterations.
+    // This allows in-place updates without a secondary buffer.
+    for (int i = 0; i < n_elements; ++i) {
+        double current_u = u_ptr[i];
+        // u_new = u_old - coeff * (u_old - u_prev)
+        u_ptr[i] = current_u - coeff * (current_u - prev_u);
+        prev_u = current_u;
+    }
+}
+
 std::vector<std::pair<double, double>> FiniteVolumeSolver::get_solution() const {
     if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
     std::vector<std::pair<double, double>> sol;
