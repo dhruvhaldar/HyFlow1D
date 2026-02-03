@@ -384,7 +384,7 @@ int main(int argc, char* argv[]) {
                       std::cerr << Color::Yellow << "⚠️  Warning: Output directory '" << output_dir << "' has insecure permissions (Group/World accessible)." << Color::Reset << std::endl;
                       std::cerr << "    Attempting to secure it (0700)... ";
                       try {
-                          fs::permissions(output_dir, fs::perms::owner_all, fs::perm_options::replace);
+                          fs::permissions(output_dir, fs::perms::owner_all, fs::perm_options::replace | fs::perm_options::nofollow);
                           std::cerr << Color::Green << "Done." << Color::Reset << std::endl;
                       } catch (const std::exception& e) {
                           std::cerr << Color::Red << "Failed (" << e.what() << ")." << Color::Reset << std::endl;
