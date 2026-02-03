@@ -56,3 +56,7 @@ This journal records critical UX and accessibility learnings for the HyFlow1D pr
 ## 2026-02-02 - Terminal Visualization
 **Learning:** Visualizing data directly in the terminal (e.g., via sparklines) bridges the gap between running a simulation and opening an external viewer. It provides immediate visual confirmation of physical behavior (e.g., "is the wave moving?") without context switching.
 **Action:** Use simple ASCII/Unicode visualizations for 1D data series in CLI tools where graphical output is secondary or delayed.
+
+## 2026-02-02 - Visualizing Domain Decomposition
+**Learning:** For hybrid solvers or multi-physics simulations, users often struggle to map the numerical method to the physical domain. Using subtle background shading (e.g., `axvspan`) with clear labels effectively communicates the domain decomposition "at a glance" without requiring the user to read the configuration logs.
+**Action:** Always visually distinguish solver regions in plots when multiple methods are used.
