@@ -81,6 +81,10 @@ def get_time_from_file(filepath):
 
 def open_file(filepath):
     """Opens a file with the default system application."""
+    # Security: Use absolute path to prevent Argument Injection (e.g. filename starting with '-')
+    # when passing the path to external commands like 'open' or 'xdg-open'.
+    filepath = os.path.abspath(filepath)
+
     if platform.system() == 'Darwin':       # macOS
         subprocess.call(('open', filepath))
     elif platform.system() == 'Windows':    # Windows

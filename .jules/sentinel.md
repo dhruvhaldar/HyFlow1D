@@ -66,3 +66,8 @@
 **Vulnerability:** The code attempted to secure existing output directories by checking `!is_symlink` before calling `fs::permissions`. This created a TOCTOU race condition where the directory could be replaced by a symlink between the check and the call, causing `fs::permissions` to modify the target file (potentially sensitive).
 **Learning:** Security checks (like `is_symlink`) are not atomic with subsequent operations. Relying on them for security is flawed.
 **Prevention:** Use atomic flags like `fs::perm_options::nofollow` in the operation itself (`fs::permissions`) to enforce constraints at the kernel/syscall level, ensuring the operation fails safely if the target is a symlink.
+
+## 2025-02-04 - [Argument Injection via Filenames]
+**Vulnerability:** The visualization script passed user-controlled filenames directly to system commands (`open`, `xdg-open`). A malicious filename starting with `-` (e.g., `-aCalculator`) was interpreted as a command-line flag, allowing execution of unintended applications.
+**Learning:** System commands often treat arguments starting with `-` as flags, even if they are intended as file paths. Validating for `..` is insufficient to prevent this "Argument Injection".
+**Prevention:** Always convert user-provided file paths to absolute paths (using `os.path.abspath`) before passing them to external system commands. This forces the command to treat them as files.
