@@ -271,6 +271,17 @@ def plot_all():
         except Exception as e:
             print(f"{Colors.YELLOW}⚠️  Warning: Could not plot {f}: {e}{Colors.RESET}")
         
+    # Palette UX: Visually distinguish FV and DG regions
+    # FV Region (Left) - Light Blue
+    plt.axvspan(0.0, 0.5, color='#e6f3ff', alpha=0.5, lw=0)
+    plt.text(0.25, 1.01, "Finite Volume (FV)", transform=plt.gca().get_xaxis_transform(),
+             ha='center', va='bottom', fontsize=9, color='#0066cc', fontweight='bold')
+
+    # DG Region (Right) - Light Orange
+    plt.axvspan(0.5, 1.0, color='#fff5e6', alpha=0.5, lw=0)
+    plt.text(0.75, 1.01, "Discontinuous Galerkin (DG)", transform=plt.gca().get_xaxis_transform(),
+             ha='center', va='bottom', fontsize=9, color='#cc6600', fontweight='bold')
+
     plt.axvline(x=0.5, color='gray', linestyle='--', alpha=0.7, label='Interface (FV | DG)')
     plt.xlabel('Position (x)')
     plt.ylabel('Value (u)')
