@@ -36,6 +36,10 @@ public:
     // Returns pairs of (x, u)
     virtual std::vector<std::pair<double, double>> get_solution() const = 0;
 
+    // Get the domain boundaries
+    virtual double get_domain_start() const = 0;
+    virtual double get_domain_end() const = 0;
+
     // --- Coupling Interfaces ---
     
     // Get the value at the left boundary of the domain

@@ -71,3 +71,8 @@
 **Vulnerability:** The visualization script passed user-controlled filenames directly to system commands (`open`, `xdg-open`). A malicious filename starting with `-` (e.g., `-aCalculator`) was interpreted as a command-line flag, allowing execution of unintended applications.
 **Learning:** System commands often treat arguments starting with `-` as flags, even if they are intended as file paths. Validating for `..` is insufficient to prevent this "Argument Injection".
 **Prevention:** Always convert user-provided file paths to absolute paths (using `os.path.abspath`) before passing them to external system commands. This forces the command to treat them as files.
+
+## 2025-02-04 - [Input Validation for Domain Connectivity]
+**Vulnerability:** Hybrid solvers could be initialized with disconnected or overlapping domains, leading to physically invalid simulation states (teleportation/ghost mass).
+**Learning:** In multi-component physical systems, validating internal component limits is not enough. The *interface consistency* between components must also be validated.
+**Prevention:** Enforce geometric continuity checks in the aggregation class constructor.

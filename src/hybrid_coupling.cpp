@@ -1,5 +1,6 @@
 #include "hybrid_coupling.hpp"
 #include <stdexcept>
+#include <cmath>
 
 HybridDomain::HybridDomain(std::unique_ptr<Solver1D> left, std::unique_ptr<Solver1D> right)
     : left_domain(std::move(left)), right_domain(std::move(right)) {
@@ -8,6 +9,18 @@ HybridDomain::HybridDomain(std::unique_ptr<Solver1D> left, std::unique_ptr<Solve
     }
     if (!right_domain) {
         throw std::invalid_argument("Right domain solver cannot be null.");
+    }
+
+    // Security Enhancement: Validate Domain Connectivity
+    // Ensure the interface is continuous (within tolerance) to prevent
+    // physically invalid configurations (teleportation/gaps).
+    double left_end = left_domain->get_domain_end();
+    double right_start = right_domain->get_domain_start();
+
+    if (std::abs(left_end - right_start) > 1e-9) {
+        throw std::invalid_argument("Domain mismatch: Gap or Overlap detected at interface ("
+                                    + std::to_string(left_end) + " vs "
+                                    + std::to_string(right_start) + ").");
     }
 }
 
