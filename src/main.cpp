@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cstdio>
 #include <fstream>
+#include <sstream>
 #include <vector>
 #include <cmath>
 #include <memory>
@@ -68,7 +69,7 @@ bool is_safe_path(const std::string& path_str) {
     return true;
 }
 
-void write_solution(const std::string& filename, const std::vector<std::pair<double, double>>& solution, double time = -1.0) {
+void write_solution(const std::string& filename, const std::vector<std::pair<double, double>>& solution, double time = -1.0, const std::string& extra_header = "") {
 #if defined(HAS_UNISTD)
     // Security: Prevent Symlink Attack (Arbitrary File Overwrite) via O_NOFOLLOW
     // This atomic check prevents TOCTOU race conditions.
@@ -102,6 +103,9 @@ void write_solution(const std::string& filename, const std::vector<std::pair<dou
     if (time >= 0.0) {
         fprintf(outfile, "# t=%.17g\n", time);
     }
+    if (!extra_header.empty()) {
+        fprintf(outfile, "# %s\n", extra_header.c_str());
+    }
     fprintf(outfile, "x,u\n");
     for (const auto& p : solution) {
         fprintf(outfile, "%.17g,%.17g\n", p.first, p.second);
@@ -123,6 +127,9 @@ void write_solution(const std::string& filename, const std::vector<std::pair<dou
     }
     if (time >= 0.0) {
         outfile << "# t=" << time << "\n";
+    }
+    if (!extra_header.empty()) {
+        outfile << "# " << extra_header << "\n";
     }
     outfile << "x,u\n";
     for (const auto& p : solution) {
@@ -439,6 +446,11 @@ int main(int argc, char* argv[]) {
         int n_dg = 10;
         int p_order = 3;
 
+        // Palette UX: Construct domain metadata string for visualization
+        std::ostringstream meta_ss;
+        meta_ss << "x_domain=" << x_start << ":" << x_interface << ":" << x_end;
+        std::string domain_meta = meta_ss.str();
+
         double advection_speed = 1.0;
         double cfl = 0.1; // Low CFL for stability with Forward Euler
         double dx_min = std::min( (x_interface - x_start)/n_fv, (x_end - x_interface)/n_dg / (2*p_order+1) );
@@ -511,7 +523,7 @@ int main(int argc, char* argv[]) {
 
             if (step % output_interval == 0) {
                 std::string fname = output_dir + "/solution_" + std::to_string(step) + ".csv";
-                write_solution(fname, hybrid.get_solution(), t);
+                write_solution(fname, hybrid.get_solution(), t, domain_meta);
                 if (verbose) {
                     std::cout << "Step " << step << ", t = " << t << std::endl;
                 }
@@ -540,7 +552,7 @@ int main(int argc, char* argv[]) {
         }
 
         // Final output
-        write_solution(output_dir + "/solution_final.csv", hybrid.get_solution(), t_final);
+        write_solution(output_dir + "/solution_final.csv", hybrid.get_solution(), t_final, domain_meta);
 
         auto end_time = std::chrono::steady_clock::now();
         std::chrono::duration<double> total_elapsed = end_time - start_time;

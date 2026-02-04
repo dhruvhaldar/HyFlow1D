@@ -68,16 +68,36 @@ def is_safe_path(path_str):
             return False
     return True
 
-def get_time_from_file(filepath):
-    """Extracts time from the first line comment like '# t=0.123'."""
+def parse_header(filepath):
+    """Extracts metadata from header comments (t, domain info)."""
+    metadata = {'t': None, 'domain': None}
     try:
         with open(filepath, 'r') as f:
-            first_line = f.readline()
-            if first_line.startswith("# t="):
-                return float(first_line.strip().split('=')[1])
+            for _ in range(5): # Check first 5 lines
+                line = f.readline()
+                if not line.startswith('#'):
+                    break
+
+                content = line.strip().lstrip('#').strip()
+                if content.startswith('t='):
+                    try:
+                        metadata['t'] = float(content.split('=')[1])
+                    except ValueError:
+                        pass
+                elif content.startswith('x_domain='):
+                    try:
+                        parts = content.split('=')[1].split(':')
+                        if len(parts) == 3:
+                            metadata['domain'] = {
+                                'start': float(parts[0]),
+                                'interface': float(parts[1]),
+                                'end': float(parts[2])
+                            }
+                    except ValueError:
+                        pass
     except Exception:
-        return None
-    return None
+        pass
+    return metadata
 
 def open_file(filepath):
     """Opens a file with the default system application."""
@@ -203,9 +223,14 @@ def plot_all():
     loaded_data = []
     first_valid_max = None
     last_valid_max = None
+    domain_config = None # Store the last valid domain config found
 
     for f in files_to_plot:
-        t_val = get_time_from_file(f)
+        meta = parse_header(f)
+        t_val = meta['t']
+        if meta['domain']:
+            domain_config = meta['domain']
+
         fname = os.path.basename(f)
         t_str = f"t={t_val:.4f}s" if t_val is not None else "t=?"
 
@@ -272,17 +297,26 @@ def plot_all():
             print(f"{Colors.YELLOW}⚠️  Warning: Could not plot {f}: {e}{Colors.RESET}")
         
     # Palette UX: Visually distinguish FV and DG regions
-    # FV Region (Left) - Light Blue
-    plt.axvspan(0.0, 0.5, color='#e6f3ff', alpha=0.5, lw=0)
-    plt.text(0.25, 1.01, "Finite Volume (FV)", transform=plt.gca().get_xaxis_transform(),
+    # Use dynamic domain config if available, else fallback to defaults
+    x_start, x_interface, x_end = 0.0, 0.5, 1.0
+    if domain_config:
+        x_start = domain_config['start']
+        x_interface = domain_config['interface']
+        x_end = domain_config['end']
+
+    # FV Region (Left)
+    plt.axvspan(x_start, x_interface, color='#e6f3ff', alpha=0.5, lw=0)
+    mid_fv = x_start + (x_interface - x_start) / 2
+    plt.text(mid_fv, 1.01, "Finite Volume (FV)", transform=plt.gca().get_xaxis_transform(),
              ha='center', va='bottom', fontsize=9, color='#0066cc', fontweight='bold')
 
-    # DG Region (Right) - Light Orange
-    plt.axvspan(0.5, 1.0, color='#fff5e6', alpha=0.5, lw=0)
-    plt.text(0.75, 1.01, "Discontinuous Galerkin (DG)", transform=plt.gca().get_xaxis_transform(),
+    # DG Region (Right)
+    plt.axvspan(x_interface, x_end, color='#fff5e6', alpha=0.5, lw=0)
+    mid_dg = x_interface + (x_end - x_interface) / 2
+    plt.text(mid_dg, 1.01, "Discontinuous Galerkin (DG)", transform=plt.gca().get_xaxis_transform(),
              ha='center', va='bottom', fontsize=9, color='#cc6600', fontweight='bold')
 
-    plt.axvline(x=0.5, color='gray', linestyle='--', alpha=0.7, label='Interface (FV | DG)')
+    plt.axvline(x=x_interface, color='gray', linestyle='--', alpha=0.7, label='Interface (FV | DG)')
     plt.xlabel('Position (x)')
     plt.ylabel('Value (u)')
 
