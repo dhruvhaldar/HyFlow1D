@@ -54,6 +54,9 @@ public:
     void step(double dt, double advection_speed) override;
     std::vector<std::pair<double, double>> get_solution() const override;
 
+    double get_domain_start() const override { return x_start; }
+    double get_domain_end() const override { return x_end; }
+
     double get_left_boundary_value() const override;
     double get_right_boundary_value() const override;
     void set_left_neighbor_value(double val) override;
