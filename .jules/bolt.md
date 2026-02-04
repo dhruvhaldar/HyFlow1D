@@ -25,3 +25,7 @@
 ## 2024-10-26 - DG Stiffness Matrix Sparsity Unrolling
 **Learning:** The stiffness matrix $K_{km}$ has specific zero entries due to parity (k+m even -> 0). Exploiting this in the fully unrolled kernel for N=3 and N=4 saved ~3% overhead by removing 2 multiplies per element.
 **Action:** When unrolling matrix operations, always check for mathematical zeros (sparsity) that might not be obvious in the generic loop form.
+
+## 2024-10-27 - DG Solver Constant Folding
+**Learning:** Pre-multiplying constants (like `dt`) into invariant arrays (like `inverse_mass`) outside the hot loop saves significant scalar multiplications (e.g. 1 per mode per element), yielding ~5% speedup even in memory-bound kernels.
+**Action:** Always check if loop invariants can be folded into existing precomputed tables.

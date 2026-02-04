@@ -328,11 +328,12 @@ namespace {
                                double dt) {
         double prev_boundary_val = left_ghost;
 
-        // Optimization: Precompute scaled inverse mass matrix
-        double scaled_inv_mass[N];
-        double a_over_dx = a / dx;
+        // Optimization: Precompute scaled inverse mass matrix * dt
+        // This avoids multiplying by 'dt' inside the inner loop for every term.
+        double scaled_inv_mass_dt[N];
+        double factor = a / dx * dt;
         for (int k = 0; k < N; ++k) {
-            scaled_inv_mass[k] = (2.0 * k + 1.0) * a_over_dx;
+            scaled_inv_mass_dt[k] = (2.0 * k + 1.0) * factor;
         }
 
         // Optimization: Stiffness matrix values are hardcoded based on Legendre properties.
@@ -386,26 +387,26 @@ namespace {
                     double vol = 0.0;
                     double total_rhs = vol - surf_term_even;
                     // Fused Update
-                    u_elem[0] += dt * total_rhs * scaled_inv_mass[0];
+                    u_elem[0] += total_rhs * scaled_inv_mass_dt[0];
                 }
 
                 if constexpr (N >= 2) {
                      // k=1, m=0. K[1,0]=2
                      double vol = 2.0 * u_local[0];
                      double total_rhs = vol - surf_term_odd;
-                     u_elem[1] += dt * total_rhs * scaled_inv_mass[1];
+                     u_elem[1] += total_rhs * scaled_inv_mass_dt[1];
                 }
                 if constexpr (N >= 3) {
                      // k=2, m=0,1. K[2,1]=2.
                      double vol = 2.0 * u_local[1];
                      double total_rhs = vol - surf_term_even;
-                     u_elem[2] += dt * total_rhs * scaled_inv_mass[2];
+                     u_elem[2] += total_rhs * scaled_inv_mass_dt[2];
                 }
                 if constexpr (N >= 4) {
                      // k=3, m=0,1,2. K[3,0]=2, K[3,2]=2.
                      double vol = 2.0 * (u_local[0] + u_local[2]);
                      double total_rhs = vol - surf_term_odd;
-                     u_elem[3] += dt * total_rhs * scaled_inv_mass[3];
+                     u_elem[3] += total_rhs * scaled_inv_mass_dt[3];
                 }
             } else {
                 // Generic fallback
@@ -417,7 +418,7 @@ namespace {
                         }
                     }
                     double total_rhs = volume_int - ((k % 2 == 0) ? surf_term_even : surf_term_odd);
-                    u_elem[k] += dt * total_rhs * scaled_inv_mass[k];
+                    u_elem[k] += total_rhs * scaled_inv_mass_dt[k];
                 }
             }
         }
