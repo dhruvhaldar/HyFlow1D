@@ -355,12 +355,12 @@ int main(int argc, char* argv[]) {
                 if (argv[i][0] == '-') {
                     std::cerr << Color::BoldRed << "Error: Unknown option '" << argv[i] << "'" << Color::Reset << std::endl;
                     suggest_flag(argv[i]);
-                    show_usage(argv[0]);
+                    std::cerr << "Run '" << argv[0] << " --help' for usage." << std::endl;
                     return 1;
                 } else {
                      // Could be a positional argument, but we don't support any yet.
                     std::cerr << Color::BoldRed << "Error: Unexpected argument '" << argv[i] << "'" << Color::Reset << std::endl;
-                    show_usage(argv[0]);
+                    std::cerr << "Run '" << argv[0] << " --help' for usage." << std::endl;
                     return 1;
                 }
             }

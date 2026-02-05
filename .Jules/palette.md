@@ -60,3 +60,7 @@ This journal records critical UX and accessibility learnings for the HyFlow1D pr
 ## 2026-02-02 - Visualizing Domain Decomposition
 **Learning:** For hybrid solvers or multi-physics simulations, users often struggle to map the numerical method to the physical domain. Using subtle background shading (e.g., `axvspan`) with clear labels effectively communicates the domain decomposition "at a glance" without requiring the user to read the configuration logs.
 **Action:** Always visually distinguish solver regions in plots when multiple methods are used.
+
+## 2026-02-03 - Focused Error Feedback
+**Learning:** When a user makes a typo in a CLI argument, dumping the entire help manual buries the specific error message and any "Did you mean?" suggestions, causing frustration.
+**Action:** For argument errors, only print the error, the suggestion (if any), and a one-line hint to run `--help`, keeping the feedback concise and actionable.
