@@ -76,3 +76,8 @@
 **Vulnerability:** Hybrid solvers could be initialized with disconnected or overlapping domains, leading to physically invalid simulation states (teleportation/ghost mass).
 **Learning:** In multi-component physical systems, validating internal component limits is not enough. The *interface consistency* between components must also be validated.
 **Prevention:** Enforce geometric continuity checks in the aggregation class constructor.
+
+## 2025-02-04 - [CSV Injection in Log Output]
+**Vulnerability:** The application wrote unsanitized user inputs (headers) into CSV output files. An attacker could inject newlines to forge fake data entries or corrupt the file structure (Log/CSV Injection).
+**Learning:** Writing data to structured file formats (CSV, logs, etc.) requires strict sanitization of all inputs, even those used for metadata (comments). Newlines are control characters in line-based formats.
+**Prevention:** Sanitize all string inputs before writing them to files. Specifically, replace or remove newlines (`\n`, `\r`) in data that is intended to be a single-line comment or field.
