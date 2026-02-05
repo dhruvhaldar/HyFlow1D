@@ -112,6 +112,7 @@ void FiniteVolumeSolver::step(double dt, double advection_speed) {
 std::vector<std::pair<double, double>> FiniteVolumeSolver::get_solution() const {
     if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
     std::vector<std::pair<double, double>> sol;
+    sol.reserve(n_elements);
     for (int i = 0; i < n_elements; ++i) {
         sol.push_back({x_start + (i + 0.5) * dx, u[i]});
     }
