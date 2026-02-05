@@ -559,6 +559,7 @@ std::vector<std::pair<double, double>> DiscontinuousGalerkinSolver::get_solution
 
     std::vector<std::pair<double, double>> sol;
     int points_per_elem = 5; // Resolution for plotting
+    sol.reserve(n_elements * (points_per_elem + 1));
     for (int i = 0; i < n_elements; ++i) {
         double x_center = x_start + (i + 0.5) * dx;
         for (int j = 0; j <= points_per_elem; ++j) {
