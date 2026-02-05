@@ -104,7 +104,12 @@ void write_solution(const std::string& filename, const std::vector<std::pair<dou
         fprintf(outfile, "# t=%.17g\n", time);
     }
     if (!extra_header.empty()) {
-        fprintf(outfile, "# %s\n", extra_header.c_str());
+        // Security: Sanitize header to prevent CSV Injection / Log Injection
+        // Replace newlines with spaces to ensure the header stays commented out.
+        std::string safe_header = extra_header;
+        std::replace(safe_header.begin(), safe_header.end(), '\n', ' ');
+        std::replace(safe_header.begin(), safe_header.end(), '\r', ' ');
+        fprintf(outfile, "# %s\n", safe_header.c_str());
     }
     fprintf(outfile, "x,u\n");
     for (const auto& p : solution) {
