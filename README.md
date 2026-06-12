@@ -27,7 +27,7 @@ It serves as a Proof of Concept (PoC) for coupling robust low-order industrial s
 
 ```bash
 # Clone the repository
-git clone https://github.com/username/HyFlow1D.git
+git clone https://github.com/dhruvhaldar/HyFlow1D.git
 cd HyFlow1D
 
 # Create build directory
