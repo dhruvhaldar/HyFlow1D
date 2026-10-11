@@ -25,6 +25,13 @@ public:
     // Update state: u = u + dt * rhs
     virtual void update_state(double dt) = 0;
 
+    // Multi-stage time integration support (e.g. SSPRK3)
+    // Saves current state into a stage buffer
+    virtual void save_stage() = 0;
+
+    // Blends state: u = alpha * u_saved + beta * (u + dt * rhs)
+    virtual void blend_stage(double alpha, double beta, double dt) = 0;
+
     // Perform a full time step (compute_rhs + update_state)
     // Can be overridden for fused optimizations.
     virtual void step(double dt, double advection_speed) {
@@ -39,6 +46,11 @@ public:
     // Get the domain boundaries
     virtual double get_domain_start() const = 0;
     virtual double get_domain_end() const = 0;
+    virtual int get_num_elements() const = 0;
+
+    // Diagnostic reductions: Mass integral \int u dx, Kinetic energy \int 0.5 * u^2 dx
+    virtual double compute_total_mass() const = 0;
+    virtual double compute_total_energy() const = 0;
 
     // --- Coupling Interfaces ---
     

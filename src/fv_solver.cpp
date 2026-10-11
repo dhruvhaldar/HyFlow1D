@@ -28,6 +28,7 @@ void FiniteVolumeSolver::initialize(double start, double end, int n_elem) {
     n_elements = n_elem;
     dx = (x_end - x_start) / n_elements;
     u.resize(n_elements);
+    u_stage0.resize(n_elements);
     rhs.resize(n_elements);
     left_ghost = 0.0;
     right_ghost = 0.0;
@@ -48,10 +49,7 @@ void FiniteVolumeSolver::compute_rhs(double /*t*/, double a) {
     // 1st Order Upwind Scheme: u_i^{n+1} = u_i^n - a * dt/dx * (u_i - u_{i-1})
     // RHS = -a * (u_i - u_{i-1}) / dx
     
-    // We assume a > 0 for this implementation
-    
     // Optimization: Precompute coefficient to avoid repeated divisions
-    // RHS = -a * (u_i - u_{i-1}) / dx = (-a/dx) * (u_i - u_{i-1})
     const double coeff = -a / dx;
 
     double* RESTRICT rhs_ptr = rhs.data();
@@ -62,23 +60,33 @@ void FiniteVolumeSolver::compute_rhs(double /*t*/, double a) {
         rhs_ptr[0] = coeff * (u_ptr[0] - left_ghost);
     }
 
-    // Main loop - no branching, vectorization friendly
-    // Optimization: Loop structure allows auto-vectorization by compiler.
-    // Modern compilers handle the adjacent loads (u[i] and u[i-1]) efficiently.
+    // Main loop: parallelized with OpenMP across elements
+    #pragma omp parallel for schedule(static)
     for (int i = 1; i < n_elements; ++i) {
         rhs_ptr[i] = coeff * (u_ptr[i] - u_ptr[i-1]);
     }
 }
 
 void FiniteVolumeSolver::update_state(double dt) {
+    blend_stage(0.0, 1.0, dt);
+}
+
+void FiniteVolumeSolver::save_stage() {
+    if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
+    u_stage0 = u;
+}
+
+void FiniteVolumeSolver::blend_stage(double alpha, double beta, double dt) {
     if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
 
     double* RESTRICT u_ptr = u.data();
+    const double* RESTRICT u0_ptr = u_stage0.data();
     const double* RESTRICT rhs_ptr = rhs.data();
-    size_t size = u.size();
+    const size_t size = u.size();
 
+    #pragma omp parallel for schedule(static)
     for (size_t i = 0; i < size; ++i) {
-        u_ptr[i] += dt * rhs_ptr[i];
+        u_ptr[i] = alpha * u0_ptr[i] + beta * (u_ptr[i] + dt * rhs_ptr[i]);
     }
 }
 
@@ -135,4 +143,30 @@ void FiniteVolumeSolver::set_left_neighbor_value(double val) {
 
 void FiniteVolumeSolver::set_right_neighbor_value(double val) {
     right_ghost = val;
+}
+
+double FiniteVolumeSolver::compute_total_mass() const {
+    if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
+    double total = 0.0;
+    const double* RESTRICT u_ptr = u.data();
+    const int n = n_elements;
+
+    #pragma omp parallel for reduction(+:total) schedule(static)
+    for (int i = 0; i < n; ++i) {
+        total += u_ptr[i] * dx;
+    }
+    return total;
+}
+
+double FiniteVolumeSolver::compute_total_energy() const {
+    if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
+    double total = 0.0;
+    const double* RESTRICT u_ptr = u.data();
+    const int n = n_elements;
+
+    #pragma omp parallel for reduction(+:total) schedule(static)
+    for (int i = 0; i < n; ++i) {
+        total += 0.5 * u_ptr[i] * u_ptr[i] * dx;
+    }
+    return total;
 }
