@@ -7,10 +7,11 @@ import difflib
 import subprocess
 import platform
 import errno
+import csv
 from pathlib import Path
 from itertools import cycle
 
-# Palette: Setup colors for better UX (respects NO_COLOR standard)
+# Setup colors (respects NO_COLOR standard)
 class Colors:
     _enabled = sys.stdout.isatty() and os.getenv("NO_COLOR") is None
 
@@ -25,10 +26,10 @@ class Colors:
     BOLD_GREEN   = "\033[1;32m" if _enabled else ""
     CYAN         = "\033[36m"   if _enabled else ""
 
-# Palette: Smart Argument Parser for "Did you mean?" suggestions
+# Smart Argument Parser for "Did you mean?" suggestions
 class SmartArgumentParser(argparse.ArgumentParser):
     def error(self, message):
-        sys.stderr.write(f"{Colors.BOLD_RED}❌ Error: {message}{Colors.RESET}\n")
+        sys.stderr.write(f"{Colors.BOLD_RED}Error: {message}{Colors.RESET}\n")
 
         if "unrecognized arguments" in message:
             # Get all valid flags from the parser actions
@@ -37,10 +38,8 @@ class SmartArgumentParser(argparse.ArgumentParser):
                 valid_flags.extend(action.option_strings)
 
             # Check arguments provided in sys.argv for potential typos
-            # Note: This is a heuristic scan of sys.argv.
             for arg in sys.argv[1:]:
                 if arg.startswith('-') and arg not in valid_flags:
-                    # It's an unknown flag, try to find a match
                     matches = difflib.get_close_matches(arg, valid_flags, n=1, cutoff=0.6)
                     if matches:
                         sys.stderr.write(f"       Did you mean '{Colors.YELLOW}{matches[0]}{Colors.RESET}'?\n")
@@ -51,13 +50,18 @@ class SmartArgumentParser(argparse.ArgumentParser):
 
 try:
     import matplotlib.pyplot as plt
-    import pandas as pd
 except ImportError as e:
-    print(f"\n{Colors.BOLD_RED}❌ Error: Missing required dependencies for visualization.{Colors.RESET}")
-    print(f"   Reason: {e}")
-    print(f"\n{Colors.YELLOW}💡 Please install them with:{Colors.RESET}")
-    print(f"   pip install matplotlib pandas\n")
+    sys.stderr.write(f"\n{Colors.BOLD_RED}Error: Missing required dependency for visualization.{Colors.RESET}\n")
+    sys.stderr.write(f"   Reason: {e}\n")
+    sys.stderr.write(f"\n{Colors.YELLOW}Please install with:{Colors.RESET}\n")
+    sys.stderr.write(f"   pip install matplotlib\n\n")
     sys.exit(1)
+
+try:
+    import pandas as pd
+    HAS_PANDAS = True
+except ImportError:
+    HAS_PANDAS = False
 
 def is_safe_path(path_str):
     if not path_str:
@@ -99,6 +103,28 @@ def parse_header(filepath):
         pass
     return metadata
 
+def load_solution_data(filepath):
+    """Loads x, u coordinate and value pairs from a solution CSV file."""
+    if HAS_PANDAS:
+        df = pd.read_csv(filepath, comment='#')
+        return list(df['x']), list(df['u'])
+
+    xs = []
+    us = []
+    with open(filepath, 'r', encoding='utf-8') as f:
+        reader = csv.reader(f)
+        for row in reader:
+            if not row or not row[0] or row[0].startswith('#'):
+                continue
+            if row[0].strip().lower() == 'x':
+                continue
+            try:
+                xs.append(float(row[0].strip()))
+                us.append(float(row[1].strip()))
+            except (ValueError, IndexError):
+                continue
+    return xs, us
+
 def open_file(filepath):
     """Opens a file with the default system application."""
     # Security: Use absolute path to prevent Argument Injection (e.g. filename starting with '-')
@@ -112,7 +138,7 @@ def open_file(filepath):
     else:                                   # linux variants
         subprocess.call(('xdg-open', filepath))
 
-# Palette: Sparkline Generator for Terminal
+# Sparkline Generator for Terminal
 def generate_sparkline(data, width=15):
     """Generates an ASCII sparkline from a list of numbers."""
     if not len(data): return ""
@@ -175,11 +201,11 @@ def plot_all():
 
     # Security: Validate paths
     if args.input_dir and not is_safe_path(args.input_dir):
-        print("❌ Error: Invalid input directory. Path traversal ('..') is not allowed.")
+        print("Error: Invalid input directory. Path traversal ('..') is not allowed.")
         sys.exit(1)
 
     if not is_safe_path(args.output):
-        print("❌ Error: Invalid output filename. Path traversal ('..') is not allowed.")
+        print("Error: Invalid output filename. Path traversal ('..') is not allowed.")
         sys.exit(1)
 
     # Determine search path
@@ -201,13 +227,13 @@ def plot_all():
     files = sorted(glob.glob(search_path), key=lambda f: int(''.join(filter(str.isdigit, os.path.basename(f))) or 999999))
     
     if not files:
-        print(f"{Colors.BOLD_RED}❌ No solution files found in: {display_dir}{Colors.RESET}")
+        print(f"{Colors.BOLD_RED}No solution files found in: {display_dir}{Colors.RESET}")
         print(f"   (Looking for 'solution_*.csv')")
-        print(f"\n{Colors.YELLOW}💡 Tip: Run the simulation first to generate results:{Colors.RESET}")
+        print(f"\n{Colors.YELLOW}Tip: Run the simulation first to generate results:{Colors.RESET}")
         print(f"   ./hyflow1d  (or build/hyflow1d)")
         return
 
-    print(f"{Colors.BOLD}📊 Found {Colors.BLUE}{len(files)}{Colors.RESET}{Colors.BOLD} solution files in '{display_dir}'{Colors.RESET}")
+    print(f"{Colors.BOLD}Found {Colors.BLUE}{len(files)}{Colors.RESET}{Colors.BOLD} solution files in '{display_dir}'{Colors.RESET}")
 
     # Plot initial, middle, and final
     # Limit to a few frames
@@ -217,8 +243,8 @@ def plot_all():
     else:
         files_to_plot = files
 
-    # UX: List the specific snapshots being plotted so the user knows what they are looking at
-    print(f"{Colors.BOLD}🎨 Plotting {len(files_to_plot)} snapshots:{Colors.RESET}")
+    # List the specific snapshots being plotted
+    print(f"{Colors.BOLD}Plotting {len(files_to_plot)} snapshots:{Colors.RESET}")
 
     loaded_data = []
     first_valid_max = None
@@ -235,15 +261,14 @@ def plot_all():
         t_str = f"t={t_val:.4f}s" if t_val is not None else "t=?"
 
         try:
-            df = pd.read_csv(f, comment='#')
-            min_u, max_u = df['u'].min(), df['u'].max()
+            xs, us = load_solution_data(f)
+            min_u, max_u = min(us), max(us)
             stats = f"[min: {min_u:+.2f}, max: {max_u:+.2f}]"
 
-            # Palette UX: Generate Sparkline
-            spark = generate_sparkline(df['u'].tolist())
+            spark = generate_sparkline(us)
 
-            loaded_data.append((f, df, t_val))
-            print(f"   • {Colors.BLUE}{fname:<20}{Colors.RESET} ({t_str}) {Colors.YELLOW}{stats}{Colors.RESET}  {Colors.CYAN}{spark}{Colors.RESET}")
+            loaded_data.append((f, xs, us, t_val))
+            print(f"   - {Colors.BLUE}{fname:<20}{Colors.RESET} ({t_str}) {Colors.YELLOW}{stats}{Colors.RESET}  {Colors.CYAN}{spark}{Colors.RESET}")
 
             # Track peak for analysis
             if first_valid_max is None:
@@ -251,33 +276,33 @@ def plot_all():
             last_valid_max = max_u
 
         except Exception as e:
-            print(f"   • {Colors.BLUE}{fname:<20}{Colors.RESET} ({t_str}) {Colors.RED}[read error]{Colors.RESET}")
-            loaded_data.append((f, None, t_val))
+            print(f"   - {Colors.BLUE}{fname:<20}{Colors.RESET} ({t_str}) {Colors.RED}[read error]{Colors.RESET}")
+            loaded_data.append((f, None, None, t_val))
 
-    # Palette UX: Provide immediate signal analysis
+    # Signal peak analysis
     if first_valid_max is not None and last_valid_max is not None:
         delta = last_valid_max - first_valid_max
         pct = (delta / first_valid_max * 100) if abs(first_valid_max) > 1e-9 else 0.0
 
         if delta < -1e-6:
-            icon, color = "📉", Colors.YELLOW
+            tag, color = "[-]", Colors.YELLOW
             status = "Peak Decay"
         elif delta > 1e-6:
-            icon, color = "📈", Colors.BOLD_GREEN
+            tag, color = "[+]", Colors.BOLD_GREEN
             status = "Peak Growth"
         else:
-            icon, color = "➡️", Colors.BLUE
+            tag, color = "[=]", Colors.BLUE
             status = "Peak Preserved"
 
-        print(f"   {icon} {Colors.BOLD}{status}:{Colors.RESET} {first_valid_max:.2f} → {last_valid_max:.2f} ({color}{pct:+.1f}%{Colors.RESET})")
+        print(f"   {tag} {Colors.BOLD}{status}:{Colors.RESET} {first_valid_max:.2f} -> {last_valid_max:.2f} ({color}{pct:+.1f}%{Colors.RESET})")
 
     plt.figure(figsize=(10, 6))
 
     # Cycle through line styles for better accessibility (colorblind friendly)
     line_styles = cycle(['-', '--', '-.', ':'])
     
-    for f, data, time_val in loaded_data:
-        if data is None:
+    for f, xs, us, time_val in loaded_data:
+        if not xs or not us:
             continue
 
         try:
@@ -292,11 +317,11 @@ def plot_all():
             else:
                 label = f"Step {step_num}" if step_num else os.path.basename(f)
 
-            plt.plot(data['x'], data['u'], label=label, linestyle=next(line_styles), linewidth=2)
+            plt.plot(xs, us, label=label, linestyle=next(line_styles), linewidth=2)
         except Exception as e:
-            print(f"{Colors.YELLOW}⚠️  Warning: Could not plot {f}: {e}{Colors.RESET}")
+            print(f"{Colors.YELLOW}Warning: Could not plot {f}: {e}{Colors.RESET}")
         
-    # Palette UX: Visually distinguish FV and DG regions
+    # Visually distinguish FV and DG regions
     # Use dynamic domain config if available, else fallback to defaults
     x_start, x_interface, x_end = 0.0, 0.5, 1.0
     if domain_config:
@@ -320,11 +345,11 @@ def plot_all():
     plt.xlabel('Position (x)')
     plt.ylabel('Value (u)')
 
-    # Palette UX: Contextual Title
-    valid_times = [t for _, _, t in loaded_data if t is not None]
+    # Contextual Title
+    valid_times = [t for _, _, _, t in loaded_data if t is not None]
     if valid_times:
         t_start, t_end = min(valid_times), max(valid_times)
-        plt.title(f'Hybrid FV-DG Linear Advection Simulation (t={t_start:.2f}s → t={t_end:.2f}s)')
+        plt.title(f'Hybrid FV-DG Linear Advection Simulation (t={t_start:.2f}s -> {t_end:.2f}s)')
     else:
         plt.title('Hybrid FV-DG Linear Advection Simulation')
 
@@ -351,24 +376,24 @@ def plot_all():
             fmt = os.path.splitext(args.output)[1][1:] or 'png'
             plt.savefig(f, dpi=150, format=fmt)
 
-        print(f"{Colors.BOLD_GREEN}✅ Plot saved to: {Colors.RESET}{Colors.BOLD}{os.path.abspath(args.output)}{Colors.RESET}")
+        print(f"{Colors.BOLD_GREEN}Plot saved to: {Colors.RESET}{Colors.BOLD}{os.path.abspath(args.output)}{Colors.RESET}")
 
         if args.preview:
             try:
-                print(f"{Colors.BLUE}👀 Opening preview...{Colors.RESET}")
+                print(f"{Colors.BLUE}Opening preview...{Colors.RESET}")
                 open_file(args.output)
             except Exception as e:
-                print(f"{Colors.YELLOW}⚠️  Warning: Could not open preview: {e}{Colors.RESET}")
+                print(f"{Colors.YELLOW}Warning: Could not open preview: {e}{Colors.RESET}")
 
     except OSError as e:
         if e.errno == errno.ELOOP:
-            print(f"{Colors.BOLD_RED}❌ Error: Output file '{args.output}' is a symbolic link.{Colors.RESET}")
+            print(f"{Colors.BOLD_RED}Error: Output file '{args.output}' is a symbolic link.{Colors.RESET}")
             print(f"   Refusing to overwrite symbolic links to prevent security risks.")
             sys.exit(1)
         else:
-             print(f"{Colors.BOLD_RED}❌ Error saving plot: {e}{Colors.RESET}")
+            print(f"{Colors.BOLD_RED}Error saving plot: {e}{Colors.RESET}")
     except Exception as e:
-        print(f"{Colors.BOLD_RED}❌ Error saving plot: {e}{Colors.RESET}")
+        print(f"{Colors.BOLD_RED}Error saving plot: {e}{Colors.RESET}")
 
 if __name__ == "__main__":
     plot_all()

@@ -1,4 +1,5 @@
 build/
+output/
 *.csv
 *.png
 __pycache__/
