@@ -14,7 +14,7 @@ The framework provides an extensible testbed for domain-decomposition coupling: 
 ## Features
 
 - **Hybrid Domain Coupling**: Bidirectional interface coupling linking a 1st-order Finite Volume scheme with a high-order Discontinuous Galerkin formulation.
-- **Arbitrary Order DG**: Discontinuous Galerkin implementation supporting arbitrary polynomial degrees (default $P=3$).
+- **Arbitrary Order DG**: Discontinuous Galerkin implementation supporting arbitrary polynomial degrees (default $P = 3$).
 - **Rigorous Numerics**: Gauss-Legendre quadrature integration with recurrence-optimized Legendre basis evaluations and analytical stiffness matrix computations.
 - **Dependency-Free Core**: Written in clean, modern C++17 using only the standard library for core solvers.
 - **Security-Hardened I/O**: Atomic file creation with `O_NOFOLLOW` symlink protections, path traversal sanitization, and restricted directory permissions (`0700`/`0600`).
@@ -61,7 +61,7 @@ $$F_{i+1/2} = a \, \bar{u}_i$$
 
 ### 4. Discontinuous Galerkin Method (DG)
 
-Within each element $e = [x_{e-1/2}, x_{e+1/2}]$, the solution is approximated by a degree-$P$ polynomial expansion mapped to the reference interval $\xi \in [-1, 1]$:
+Within each element $e = [x_{e-1/2}, x_{e+1/2}]$, the solution is approximated by a polynomial expansion of degree $P$ mapped to the reference interval $\xi \in [-1, 1]$:
 
 $$u_h^e(\xi, t) = \sum_{k=0}^P \hat{u}_k^e(t) P_k(\xi)$$
 
