@@ -3,25 +3,115 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Language: C++17](https://img.shields.io/badge/Language-C%2B%2B17-blue.svg)](https://en.cppreference.com/w/cpp/17)
 [![Build: CMake](https://img.shields.io/badge/Build-CMake-brightgreen.svg)](CMakeLists.txt)
-[![Tests: CTest](https://img.shields.io/badge/Tests-5%2F5%20Passing-brightgreen.svg)](tests/)
+[![Parallelism: MPI + OpenMP](https://img.shields.io/badge/Parallelism-MPI%20%2B%20OpenMP-orange.svg)](src/main.cpp)
+[![Tests: CTest](https://img.shields.io/badge/Tests-8%2F8%20Passing-brightgreen.svg)](tests/)
 
-**HyFlow1D** is a lightweight, high-performance research code implementing a coupled **Hybrid Finite Volume (FV) / Discontinuous Galerkin (DG)** solver for 1D aerodynamic flow problems and hyperbolic conservation laws.
+**HyFlow1D** is a lightweight, high-performance research Proof of Concept (PoC) code implementing a coupled **Hybrid Finite Volume (FV) / Discontinuous Galerkin (DG)** solver for 1D aerodynamic flows and hyperbolic conservation laws.
 
-The framework provides an extensible testbed for domain-decomposition coupling: applying robust, lower-order industrial finite volume methods near complex geometries, shocks, or boundary layers, while utilizing high-order discontinuous Galerkin schemes in smooth or far-field regions to preserve waveforms with minimal numerical dispersion and dissipation.
+As a research testbed, HyFlow1D demonstrates domain-decomposition coupling: deploying robust, lower-order industrial finite volume methods near complex geometries, shocks, or boundary layers, while utilizing high-order discontinuous Galerkin schemes in smooth or far-field regions to preserve waveforms with minimal numerical dispersion and dissipation. The code demonstrates hybrid distributed/shared-memory parallelism combining **MPI** and **OpenMP**.
 
 ---
 
 ## Features
 
 - **Hybrid Domain Coupling**: Bidirectional interface coupling linking a 1st-order Finite Volume scheme with a high-order Discontinuous Galerkin formulation.
+- **Hybrid HPC Parallelism (MPI + OpenMP)**:
+  - Distributed-memory domain decomposition using non-blocking MPI halo communication (`MPI_Isend`, `MPI_Irecv`, `MPI_Waitall`).
+  - Shared-memory multi-threading within subdomains using OpenMP parallel loops and reductions.
+- **Higher-Order Time Integration**: Multi-stage 3rd-order Strong Stability Preserving Runge-Kutta (**SSPRK3**) integrator alongside 1st-order Forward Euler.
 - **Arbitrary Order DG**: Discontinuous Galerkin implementation supporting arbitrary polynomial degrees (default $P = 3$).
+- **Conservation & Invariant Diagnostics**: Real-time analytical tracking of total conserved mass ($\int u \, dx$) and kinetic energy ($\frac{1}{2}\int u^2 \, dx$) across the hybrid boundary.
 - **Rigorous Numerics**: Gauss-Legendre quadrature integration with recurrence-optimized Legendre basis evaluations and analytical stiffness matrix computations.
-- **Dependency-Free Core**: Written in clean, modern C++17 using only the standard library for core solvers.
 - **Security-Hardened I/O**: Atomic file creation with `O_NOFOLLOW` symlink protections, path traversal sanitization, and restricted directory permissions (`0700`/`0600`).
 - **Dual Visualization Ecosystem**:
   - Python CLI tool with color-coded terminal telemetry, inline sparklines, and matplotlib figures.
   - Interactive full-stack web dashboard built with Vite, React 19, Tailwind CSS, Recharts, and Three.js backed by Bun.
-- **Comprehensive Test Suite**: Automated unit and security tests covering numerical precision, interface flux consistency, solver stability, and system security.
+- **Automated Test Suite**: 8 unit, integration, and security test targets covering numerical integration, solver convergence, conservation, OpenMP thread consistency, and distributed MPI communication.
+
+---
+
+## Architecture Details
+
+HyFlow1D is structured around clean object-oriented abstraction, modular domain decomposition, and multi-tier parallelism suited for scientific computing research.
+
+```
+                              hyflow1d Application Driver
+                                      (main.cpp)
+                                           │
+             ┌─────────────────────────────┴─────────────────────────────┐
+             ▼                                                           ▼
+     HybridDomain (Single-Node)                            MpiHybridDomain (Distributed)
+     ├── Left Subdomain (FV)                               ├── Rank 0: Subdomain 0 (FV)
+     └── Right Subdomain (DG)                              └── Rank 1: Subdomain 1 (DG)
+             │                                                           │
+             │   Local Pointer Exchange                                  │   Non-Blocking MPI Halo
+             │   (Shared Memory)                                         │   (MPI_Isend / MPI_Irecv)
+             ▼                                                           ▼
+┌─────────────────────────┐                                 ┌─────────────────────────┐
+│   FiniteVolumeSolver    │                                 │ DiscontinuousGalerkin   │
+│   (P=0 Piecewise Const) │                                 │ (P=3 Modal Legendre)    │
+│   #pragma omp parallel  │                                 │ #pragma omp parallel    │
+└─────────────────────────┘                                 └─────────────────────────┘
+             │                                                           │
+             └─────────────────────────────┬─────────────────────────────┘
+                                           ▼
+                                 Numerics Engine (numerics.cpp)
+                                 ├── Gauss-Legendre Quadrature
+                                 └── Legendre Polynomial Recurrence
+```
+
+### 1. Class Hierarchy and Core Abstractions
+
+- **`Solver1D` (`include/solver.hpp`)**: Abstract base class defining the contract for any 1D subdomain solver.
+  - Lifecycle: `initialize(start, end, n_elements)`, `set_initial_condition(func)`.
+  - Discretization & Time-stepping: `compute_rhs(t, a)`, `update_state(dt)`, `save_stage()`, `blend_stage(alpha, beta, dt)`.
+  - Coupling Interface: `get_left_boundary_value()`, `get_right_boundary_value()`, `set_left_neighbor_value(val)`, `set_right_neighbor_value(val)`.
+  - Diagnostic Reductions: `compute_total_mass()`, `compute_total_energy()`.
+- **`FiniteVolumeSolver` (`include/fv_solver.hpp`)**: Standard cell-averaged finite volume discretization with 1st-order upwind numerical fluxes and OpenMP loop-level parallelism.
+- **`DiscontinuousGalerkinSolver` (`include/dg_solver.hpp`)**: Modal Discontinuous Galerkin implementation utilizing Legendre polynomial basis functions mapped to reference element $\xi \in [-1, 1]$.
+- **`HybridDomain` (`include/hybrid_coupling.hpp`)**: Coordinates boundary flux matching and multi-stage time stepping between two subdomains in a single process.
+- **`MpiHybridDomain` (`include/mpi_hybrid_coupling.hpp`)**: Manages domain decomposition across distributed MPI ranks with non-blocking halo exchanges and distributed reduction collectives.
+
+### 2. Multi-Level Parallelism Model
+
+```
+   Cluster / Node Level (Distributed Memory - MPI):
+   Rank 0 [0.0, 0.5] (FV)                       Rank 1 [0.5, 1.0] (DG)
+   ┌────────────────────────────────┐           ┌────────────────────────────────┐
+   │ Subdomain 0 Elements           │  MPI Halo │ Subdomain 1 Elements           │
+   │ [Cell 0 ... Cell 49]           │◄─────────►│ [Elem 0 ... Elem 9]            │
+   └────────────────────────────────┘  Exchange └────────────────────────────────┘
+                 │                                             │
+                 ▼                                             ▼
+   Core / Socket Level (Shared Memory - OpenMP):
+   Thread 0  Thread 1  ... Thread T             Thread 0  Thread 1  ... Thread T
+   ┌─────────┬─────────┬────────────┐           ┌─────────┬─────────┬────────────┐
+   │ Cells   │ Cells   │ Cells      │           │ Elems   │ Elems   │ Elems      │
+   │ 0..15   │ 16..31  │ 32..49     │           │ 0..2    │ 3..5    │ 6..9       │
+   └─────────┴─────────┴────────────┘           └─────────┴─────────┴────────────┘
+```
+
+1. **Distributed Memory (MPI)**:
+   - Rank 0 owns the Finite Volume subdomain ($[0.0, 0.5]$).
+   - Rank 1 owns the Discontinuous Galerkin subdomain ($[0.5, 1.0]$).
+   - Boundary exchange operates through non-blocking point-to-point primitives (`MPI_Isend` and `MPI_Irecv` with distinct communication tags for left-to-right and right-to-left flux propagation), finalized via `MPI_Waitall`.
+   - Global diagnostic reductions (`compute_total_mass`, `compute_total_energy`) utilize `MPI_Allreduce` with `MPI_SUM`.
+   - Snapshot gathering uses coordinated MPI messages onto Rank 0 for consolidated CSV generation.
+2. **Shared Memory (OpenMP)**:
+   - Independent element loops in `compute_rhs`, `blend_stage`, and `update_state` are parallelized across available hardware threads with static scheduling.
+   - Diagnostic metrics employ OpenMP reduction clauses (`reduction(+:total)`), preventing race conditions without lock contention.
+
+### 3. Multi-Stage SSPRK3 Time Integration
+
+To preserve stability and accuracy across the high-order DG subdomain, HyFlow1D implements the 3rd-order Strong Stability Preserving Runge-Kutta scheme (Shu-Osher):
+
+$$\mathbf{u}^{(1)} = \mathbf{u}^n + \Delta t \, \mathcal{L}(\mathbf{u}^n)$$
+
+$$\mathbf{u}^{(2)} = \frac{3}{4}\mathbf{u}^n + \frac{1}{4}\left(\mathbf{u}^{(1)} + \Delta t \, \mathcal{L}(\mathbf{u}^{(1)})\right)$$
+
+$$\mathbf{u}^{n+1} = \frac{1}{3}\mathbf{u}^n + \frac{2}{3}\left(\mathbf{u}^{(2)} + \Delta t \, \mathcal{L}(\mathbf{u}^{(2)})\right)$$
+
+Between every intermediate stage, `exchange_boundaries()` is evaluated so interface flux boundary conditions remain fully synchronized at all fractional time levels.
 
 ---
 
@@ -82,7 +172,7 @@ $$\frac{\Delta x_e}{2} \frac{2}{2k+1} \frac{d \hat{u}_k^e}{dt} - a \int_{-1}^1 u
 At the coupling boundary $x = 0.5$:
 1. The right boundary of the FV domain passes its cell average $\bar{u}_{N_{\text{FV}}}$ to the inflow face of the first DG element as an exterior Dirichlet state.
 2. The left boundary of the first DG element evaluates its polynomial reconstruction $u_h^1(\xi = -1)$ to supply the numerical flux $F_{\text{interface}} = a \, \bar{u}_{N_{\text{FV}}}$ entering the DG domain, guaranteeing strict mass conservation across the hybrid boundary.
-3. Both subdomains are advanced simultaneously in time using Forward Euler with a global time step restricted by the DG CFL stability criterion:
+3. Both subdomains are advanced simultaneously in time using SSPRK3 with a global time step restricted by the DG CFL stability criterion:
 
 $$\Delta t = \text{CFL} \cdot \frac{\min\left(\Delta x_{\text{FV}}, \, \frac{\Delta x_{\text{DG}}}{2P + 1}\right)}{a}$$
 
@@ -96,15 +186,17 @@ HyFlow1D/
 ├── include/                    # Header files
 │   ├── dg_solver.hpp           # Discontinuous Galerkin solver interface
 │   ├── fv_solver.hpp           # Finite Volume solver interface
-│   ├── hybrid_coupling.hpp     # Hybrid domain coupling manager
+│   ├── hybrid_coupling.hpp     # Hybrid domain coupling manager (shared-memory)
+│   ├── mpi_hybrid_coupling.hpp # Distributed MPI hybrid domain manager
 │   ├── numerics.hpp            # Legendre polynomials & Gauss-Legendre quadrature
 │   ├── solver.hpp              # Abstract solver base interface
 │   └── term_colors.hpp         # Terminal ANSI color formatting utilities
 ├── src/                        # Implementation files
 │   ├── dg_solver.cpp           # DG matrix assembly, quadrature, and kernels
 │   ├── fv_solver.cpp           # FV flux calculations and time advancement
-│   ├── hybrid_coupling.cpp     # Hybrid boundary exchange implementation
-│   ├── main.cpp                # Simulation CLI driver and configuration
+│   ├── hybrid_coupling.cpp     # Shared-memory hybrid boundary exchange
+│   ├── mpi_hybrid_coupling.cpp # Distributed MPI non-blocking halo exchanges
+│   ├── main.cpp                # Simulation CLI driver, MPI/OpenMP runtime
 │   └── numerics.cpp            # Quadrature weights and polynomial evaluation
 ├── scripts/                    # Automation and visualization tools
 │   └── plot_results.py         # Matplotlib visualization script with CLI telemetry
@@ -114,7 +206,10 @@ HyFlow1D/
 │   ├── test_solvers.cpp        # Solver unit tests
 │   ├── test_validation.cpp     # Interface conservation validation
 │   ├── test_security.cpp       # File system and path sanitization tests
-│   └── test_hybrid_security.cpp# Hybrid coupling exception and security tests
+│   ├── test_hybrid_security.cpp# Hybrid coupling exception and security tests
+│   ├── test_ssprk3.cpp         # Multi-stage SSPRK3 time integration test
+│   ├── test_openmp.cpp         # OpenMP thread equivalence test
+│   └── test_mpi.cpp            # Distributed MPI halo communication test
 └── webapp/                     # Interactive web visualization dashboard
     ├── package.json            # Web app dependencies (Bun, React, Three.js)
     ├── server.ts               # Bun backend API server
@@ -129,6 +224,8 @@ HyFlow1D/
 
 - **C++ Compiler**: GCC 7+, Clang 5+, or MSVC supporting C++17.
 - **Build System**: CMake 3.10 or later.
+- **OpenMP** (optional): OpenMP 4.5+ for multi-threading.
+- **MPI** (optional): OpenMPI or MPICH for distributed-memory execution.
 - **Python** (optional): Python 3.7+ with `matplotlib` for CLI plots.
 - **Bun** (optional): Bun runtime for running the web dashboard.
 
@@ -142,20 +239,18 @@ cd HyFlow1D
 # Create and enter build directory
 mkdir -p build && cd build
 
-# Configure and compile
-cmake -DCMAKE_BUILD_TYPE=Release ..
+# Configure and compile with OpenMP and MPI enabled
+cmake -DCMAKE_BUILD_TYPE=Release -DENABLE_OPENMP=ON -DENABLE_MPI=ON ..
 make -j$(nproc)
 ```
 
-The build process produces the `hyflow1d` executable and all test/benchmark targets within `build/`.
+The build process produces the `hyflow1d` executable and all test targets within `build/`.
 
 ---
 
 ## Usage
 
 ### Command Line Interface
-
-Run the solver directly from the command line:
 
 ```bash
 ./build/hyflow1d [OPTIONS]
@@ -170,21 +265,24 @@ Run the solver directly from the command line:
 | `-o <dir>` | `--output <dir>` | Set output directory for CSV files (default: `output`) |
 | `-c` | `--clean` | Remove previous `solution_*.csv` files before running |
 | `-n` | `--dry-run` | Print simulation configuration and exit without running |
+| `-t <N>` | `--threads <N>` | Set number of OpenMP worker threads |
+| `-i <name>`| `--integrator <name>`| Select time integrator (`ssprk3` or `euler`, default: `ssprk3`) |
 
 #### Execution Examples
 
 ```bash
-# Run simulation with default parameters and clean previous results
-./build/hyflow1d --clean
+# Single-process execution using SSPRK3 and 4 OpenMP threads
+./build/hyflow1d --clean -t 4 --integrator ssprk3
 
-# Run simulation with custom output directory and verbose logging
-./build/hyflow1d -o results_run1 -v
+# Distributed execution across 2 MPI ranks (Rank 0: FV, Rank 1: DG)
+mpirun -n 2 ./build/hyflow1d --clean
+
+# Hybrid MPI + OpenMP: 2 MPI ranks with 4 threads each
+OMP_NUM_THREADS=4 mpirun -n 2 ./build/hyflow1d --clean
 
 # Perform a dry run to verify configuration
 ./build/hyflow1d --dry-run
 ```
-
-Simulation snapshots (`solution_*.csv`) and the final solution (`solution_final.csv`) will be saved in the designated output directory.
 
 ---
 
@@ -192,67 +290,53 @@ Simulation snapshots (`solution_*.csv`) and the final solution (`solution_final.
 
 ### 1. Python CLI Plotter
 
-Use the included visualization script to plot snapshot profiles and inspect peak decay across the interface:
-
 ```bash
 # Plot results from the default output directory
 python3 scripts/plot_results.py
 
-# Specify an alternate results directory and output filename
-python3 scripts/plot_results.py results_run1 -o comparison.png
-
-# Automatically launch the default system image viewer upon saving
-python3 scripts/plot_results.py -p
+# Specify custom output image filename and open preview
+python3 scripts/plot_results.py -o comparison.png -p
 ```
 
 The script displays terminal diagnostics, including:
-- ASCII sparklines previewing spatial profiles.
-- Min/max value tracking and peak decay metrics.
-- Domain segmentation highlighting the FV and DG regions.
+- ASCII sparklines previewing spatial wave profiles.
+- Min/max value tracking and wave peak decay analysis.
+- Domain segmentation highlighting the FV and DG subdomains.
 
 ### 2. Full-Stack Web Dashboard
 
-HyFlow1D includes a modern browser dashboard featuring interactive Recharts line visualizations and a Three.js 3D background.
-
 ```bash
 cd webapp
-
-# Install dependencies
 bun install
-
-# Start the Bun backend API server (listens on port 3001)
 bun run server.ts &
-
-# Start the Vite development server
 bun run dev
 ```
 
-Navigate to `http://localhost:5173` to trigger simulations and inspect results in real time. For more information, refer to [webapp/README.md](webapp/README.md).
+Navigate to `http://localhost:5173` to run simulations and inspect results in real time. Refer to [webapp/README.md](webapp/README.md) for full instructions.
 
 ---
 
 ## Verification and Testing
 
-The repository includes a comprehensive CTest test suite covering numerical correctness, solver convergence, conservation properties, and security invariants.
-
-To execute the test suite:
+Execute the test suite using CTest:
 
 ```bash
 cd build
 ctest --output-on-failure
 ```
 
-### Test Targets
+### Test Suite Overview (8 Test Targets)
 
-1. **`numerics_test`** (`tests/test_numerics.cpp`): Verifies Legendre polynomial orthogonality, recurrence relation evaluations, and Gauss-Legendre quadrature integration exactness.
-2. **`solvers_test`** (`tests/test_solvers.cpp`): Validates individual time stepping and spatial discretization in FV and DG solvers.
-3. **`validation_test`** (`tests/test_validation.cpp`): Confirms mass conservation across the hybrid coupling interface.
-4. **`security_test`** (`tests/test_security.cpp`): Asserts path traversal prevention (`..`), symbolic link overwrite defense, and atomic permission masking.
-5. **`hybrid_security_test`** (`tests/test_hybrid_security.cpp`): Checks input validation, null pointer handling, and parameter bounds checking in the hybrid coupling framework.
+1. **`numerics_test`** (`tests/test_numerics.cpp`): Legendre orthogonality and Gauss-Legendre quadrature exactness.
+2. **`solvers_test`** (`tests/test_solvers.cpp`): Individual FV and DG solver discretization verification.
+3. **`validation_test`** (`tests/test_validation.cpp`): Mass conservation across the hybrid coupling boundary.
+4. **`security_test`** (`tests/test_security.cpp`): Path traversal (`..`) and symlink defenses.
+5. **`hybrid_security_test`** (`tests/test_hybrid_security.cpp`): Null pointer and domain gap/overlap validation.
+6. **`ssprk3_test`** (`tests/test_ssprk3.cpp`): 3rd-order SSP Runge-Kutta time accuracy and conservation.
+7. **`openmp_test`** (`tests/test_openmp.cpp`): Verification of identical numerical results between 1 and $N$ OpenMP threads.
+8. **`mpi_test`** (`tests/test_mpi.cpp`): Distributed execution verifying non-blocking halo exchanges and distributed reductions across 2 MPI ranks.
 
 ### Performance Benchmarks
-
-Performance micro-benchmarks are built alongside the tests to measure computational throughput:
 
 ```bash
 ./build/benchmark_dg
@@ -265,8 +349,6 @@ Performance micro-benchmarks are built alongside the tests to measure computatio
 ---
 
 ## Security and Hardening
-
-HyFlow1D implements security hardening suited for computational research environments:
 
 - **Path Sanitization**: User-supplied paths are validated to block directory traversal attacks (`..`).
 - **Atomic File Creation**: File writers use `open()` with `O_CREAT | O_EXCL | O_NOFOLLOW` on supported platforms to prevent Time-of-Check to Time-of-Use (TOCTOU) symlink vulnerabilities.

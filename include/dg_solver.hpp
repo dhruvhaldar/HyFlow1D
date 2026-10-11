@@ -14,6 +14,7 @@ private:
     
     // Storage: u flattened: u[element_idx * n_modes + mode_idx]
     std::vector<double> u;
+    std::vector<double> u_stage0; // Stage buffer for SSPRK3
     std::vector<double> rhs;
 
     // Quadrature rules for integration
@@ -51,11 +52,18 @@ public:
     void set_initial_condition(double (*func)(double)) override;
     void compute_rhs(double t, double advection_speed) override;
     void update_state(double dt) override;
+    void save_stage() override;
+    void blend_stage(double alpha, double beta, double dt) override;
     void step(double dt, double advection_speed) override;
     std::vector<std::pair<double, double>> get_solution() const override;
 
     double get_domain_start() const override { return x_start; }
     double get_domain_end() const override { return x_end; }
+    int get_num_elements() const override { return n_elements; }
+    int get_poly_order() const { return poly_order; }
+
+    double compute_total_mass() const override;
+    double compute_total_energy() const override;
 
     double get_left_boundary_value() const override;
     double get_right_boundary_value() const override;

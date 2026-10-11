@@ -102,6 +102,7 @@ void DiscontinuousGalerkinSolver::initialize(double start, double end, int n_ele
     
     // Flattened storage
     u.assign(n_elements * n_modes, 0.0);
+    u_stage0.assign(n_elements * n_modes, 0.0);
     rhs.assign(n_elements * n_modes, 0.0);
     
     // Precompute inverse mass matrix diagonal
@@ -514,17 +515,25 @@ void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
 }
 
 void DiscontinuousGalerkinSolver::update_state(double dt) {
+    blend_stage(0.0, 1.0, dt);
+}
+
+void DiscontinuousGalerkinSolver::save_stage() {
+    if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
+    u_stage0 = u;
+}
+
+void DiscontinuousGalerkinSolver::blend_stage(double alpha, double beta, double dt) {
     if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
 
-    // Because u and rhs are now flattened vectors of the same size,
-    // we can use a single loop.
-    // Optimization: explicit restrict pointers to help compiler vectorization.
     double* RESTRICT u_ptr = u.data();
+    const double* RESTRICT u0_ptr = u_stage0.data();
     const double* RESTRICT rhs_ptr = rhs.data();
-    size_t total_size = u.size();
+    const size_t total_size = u.size();
 
+    #pragma omp parallel for schedule(static)
     for (size_t idx = 0; idx < total_size; ++idx) {
-        u_ptr[idx] += dt * rhs_ptr[idx];
+        u_ptr[idx] = alpha * u0_ptr[idx] + beta * (u_ptr[idx] + dt * rhs_ptr[idx]);
     }
 }
 
@@ -600,4 +609,37 @@ void DiscontinuousGalerkinSolver::set_left_neighbor_value(double val) {
 
 void DiscontinuousGalerkinSolver::set_right_neighbor_value(double val) {
     right_ghost = val;
+}
+
+double DiscontinuousGalerkinSolver::compute_total_mass() const {
+    if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
+    double total = 0.0;
+    const double* RESTRICT u_ptr = u.data();
+    const int n = n_elements;
+    const int modes = n_modes;
+
+    #pragma omp parallel for reduction(+:total) schedule(static)
+    for (int i = 0; i < n; ++i) {
+        total += u_ptr[i * modes + 0] * dx;
+    }
+    return total;
+}
+
+double DiscontinuousGalerkinSolver::compute_total_energy() const {
+    if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
+    double total = 0.0;
+    const double* RESTRICT u_ptr = u.data();
+    const int n = n_elements;
+    const int modes = n_modes;
+
+    #pragma omp parallel for reduction(+:total) schedule(static)
+    for (int i = 0; i < n; ++i) {
+        double elem_energy = 0.0;
+        for (int k = 0; k < modes; ++k) {
+            double val = u_ptr[i * modes + k];
+            elem_energy += (val * val) / (2.0 * k + 1.0);
+        }
+        total += 0.5 * dx * elem_energy;
+    }
+    return total;
 }
