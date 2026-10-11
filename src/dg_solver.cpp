@@ -429,87 +429,92 @@ namespace {
 void DiscontinuousGalerkinSolver::compute_rhs(double /*t*/, double a) {
     if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
 
-    // Optimization: Dispatch to fixed-size template for common polynomial orders (P=0 to P=3)
-    // This allows the compiler to fully unroll the inner loops over modes (N)
-    // n_modes = p_order + 1.
-    switch (n_modes) {
-        case 1: // P=0
-            compute_rhs_optimized<1>(n_elements, u.data(), rhs.data(), dx, left_ghost, a);
-            return;
-        case 2: // P=1
-            compute_rhs_optimized<2>(n_elements, u.data(), rhs.data(), dx, left_ghost, a);
-            return;
-        case 3: // P=2
-            compute_rhs_optimized<3>(n_elements, u.data(), rhs.data(), dx, left_ghost, a);
-            return;
-        case 4: // P=3
-            compute_rhs_optimized<4>(n_elements, u.data(), rhs.data(), dx, left_ghost, a);
-            return;
+    if (equation_type == EquationType::LinearAdvection && a >= 0.0) {
+        // Optimization: Dispatch to fixed-size template for common polynomial orders (P=0 to P=3)
+        switch (n_modes) {
+            case 1: // P=0
+                compute_rhs_optimized<1>(n_elements, u.data(), rhs.data(), dx, left_ghost, a);
+                return;
+            case 2: // P=1
+                compute_rhs_optimized<2>(n_elements, u.data(), rhs.data(), dx, left_ghost, a);
+                return;
+            case 3: // P=2
+                compute_rhs_optimized<3>(n_elements, u.data(), rhs.data(), dx, left_ghost, a);
+                return;
+            case 4: // P=3
+                compute_rhs_optimized<4>(n_elements, u.data(), rhs.data(), dx, left_ghost, a);
+                return;
+        }
     }
 
-    // DG Formulation:
-    // (dx/2) * (2/(2k+1)) * du_k/dt = Volume_Integral - Surface_Terms
-    // Volume_Integral = Integral(a * u * dP_k/dx) dx = a * Integral(u * dP_k/dxi * 2/dx) * dx/2 dxi
-    //                 = a * Integral(u * dP_k/dxi) dxi
-    // Surface_Terms   = [a * u * P_k] boundaries
-    //                 = Flux_Right * P_k(1) - Flux_Left * P_k(-1)
-    
-    // Assume a > 0 (Upwind flux)
-    // Flux at boundary is a * u_upwind.
-    
-    double prev_boundary_val = left_ghost;
+    // General DG formulation with Local Lax-Friedrichs (Rusanov) flux
+    // and Gauss-Legendre quadrature volume integrals
+    std::vector<double> u_elem_left(n_elements);
+    std::vector<double> u_elem_right(n_elements);
 
+    #pragma omp parallel for schedule(static)
     for (int i = 0; i < n_elements; ++i) {
-        double u_left_boundary_val = prev_boundary_val;
+        u_elem_left[i] = evaluate_element(i, -1.0);
+        u_elem_right[i] = evaluate_element(i, 1.0);
+    }
 
-        // Optimization: evaluate_element(i, 1.0) is effectively summing u[base_idx + k].
-        // Implementing this inline avoids the function call and the generic loop in evaluate_element.
-        double u_right_boundary_val = 0.0;
+    std::vector<double> num_flux(n_elements + 1);
+    num_flux[0] = numerics::rusanov_flux(left_ghost, u_elem_left[0], equation_type, a);
+    num_flux[n_elements] = numerics::rusanov_flux(u_elem_right[n_elements - 1], right_ghost, equation_type, a);
+
+    #pragma omp parallel for schedule(static)
+    for (int i = 1; i < n_elements; ++i) {
+        num_flux[i] = numerics::rusanov_flux(u_elem_right[i - 1], u_elem_left[i], equation_type, a);
+    }
+
+    const size_t n_quad = quad_nodes.size();
+
+    #pragma omp parallel for schedule(static)
+    for (int i = 0; i < n_elements; ++i) {
         int base_idx = i * n_modes;
         const double* u_elem = &u[base_idx];
-
-        for (int k = 0; k < n_modes; ++k) {
-             u_right_boundary_val += u_elem[k];
-        }
-        prev_boundary_val = u_right_boundary_val;
-        
-        // Upwind fluxes
-        double flux_surf_left = a * u_left_boundary_val;
-        double flux_surf_right = a * u_right_boundary_val; 
-
-        // Compute volume integrals for all modes using Precomputed Stiffness Matrix
-        // Optimization: Replace quadrature loop with matrix-vector multiplication
-        // VolInt_k = a * Integral(u * dP_k/dxi) = a * sum_m (u_m * K_km)
-
-        const double* K_ptr = stiffness_matrix.data();
         double* rhs_elem = &rhs[base_idx];
-        double sign = 1.0; // toggles 1.0, -1.0 for P_k(-1) = (-1)^k
+        double flux_left = num_flux[i];
+        double flux_right = num_flux[i + 1];
 
-        for (int k = 0; k < n_modes; ++k) {
-            double volume_int = 0.0;
-            // Matrix-vector multiplication: Row k of Stiffness * u vector
-            // Optimization: Stiffness matrix is strictly lower triangular (m < k)
-            // K_km = Integral(P_m * P'_k) dxi. Since deg(P'_k) = k-1 and deg(P_m) = m,
-            // integral is 0 if m > k-1 (orthogonality). So only loop m < k.
-            // Packed storage ensures we only store and access m < k elements.
-            for (int m = 0; m < k; ++m) {
-                 volume_int += K_ptr[m] * u_elem[m];
+        // Mode 0: strictly conservative cell average
+        rhs_elem[0] = -(flux_right - flux_left) * inv_mass_matrix[0];
+
+        // Higher modes k >= 1
+        if (equation_type == EquationType::Burgers) {
+            double f_quad[8];
+            for (size_t q = 0; q < n_quad; ++q) {
+                double u_q = 0.0;
+                for (int m = 0; m < n_modes; ++m) {
+                    u_q += u_elem[m] * basis_at_quad[q * n_modes + m];
+                }
+                f_quad[q] = 0.5 * u_q * u_q;
             }
-            volume_int *= a;
-            
-            // Surface terms
-            // P_k(1) = 1, P_k(-1) = (-1)^k
-            double surf_right = flux_surf_right; // * 1.0
-            double surf_left  = flux_surf_left * sign;
-            
-            double total_rhs = volume_int - (surf_right - surf_left);
-            
-            // Optimization: Use precomputed inverse mass matrix
-            rhs_elem[k] = total_rhs * inv_mass_matrix[k];
 
-            // Optimization: Advance pointer by row length (k) for packed storage
-            K_ptr += k;
-            sign = -sign;
+            double sign = -1.0;
+            for (int k = 1; k < n_modes; ++k) {
+                double vol_int = 0.0;
+                for (size_t q = 0; q < n_quad; ++q) {
+                    vol_int += f_quad[q] * weighted_d_basis_at_quad[q * n_modes + k];
+                }
+                double surf = flux_right - sign * flux_left;
+                rhs_elem[k] = (vol_int - surf) * inv_mass_matrix[k];
+                sign = -sign;
+            }
+        } else {
+            const double* K_ptr = stiffness_matrix.data();
+            double sign = -1.0;
+            for (int k = 1; k < n_modes; ++k) {
+                double vol_int = 0.0;
+                for (int m = 0; m < k; ++m) {
+                    vol_int += K_ptr[m] * u_elem[m];
+                }
+                vol_int *= a;
+                double surf = flux_right - sign * flux_left;
+                rhs_elem[k] = (vol_int - surf) * inv_mass_matrix[k];
+                K_ptr += k;
+                sign = -sign;
+            }
         }
     }
 }
@@ -540,8 +545,7 @@ void DiscontinuousGalerkinSolver::blend_stage(double alpha, double beta, double 
 void DiscontinuousGalerkinSolver::step(double dt, double advection_speed) {
     if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
 
-    // Optimized kernel assumes positive advection speed (L->R sweep)
-    if (advection_speed >= 0.0) {
+    if (equation_type == EquationType::LinearAdvection && advection_speed >= 0.0) {
         switch (n_modes) {
             case 1: // P=0
                 step_optimized<1>(n_elements, u.data(), dx, left_ghost, advection_speed, dt);
@@ -558,7 +562,7 @@ void DiscontinuousGalerkinSolver::step(double dt, double advection_speed) {
         }
     }
 
-    // Generic Fallback: separate compute_rhs and update_state
+    // Generic Fallback
     compute_rhs(0.0, advection_speed);
     update_state(dt);
 }
@@ -642,4 +646,48 @@ double DiscontinuousGalerkinSolver::compute_total_energy() const {
         total += 0.5 * dx * elem_energy;
     }
     return total;
+}
+
+std::vector<double> DiscontinuousGalerkinSolver::compute_modal_sensor() const {
+    if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
+    std::vector<double> sensor(n_elements, -16.0);
+    if (poly_order < 1) return sensor;
+
+    const double* RESTRICT u_ptr = u.data();
+    const int p = poly_order;
+    const int modes = n_modes;
+
+    #pragma omp parallel for schedule(static)
+    for (int i = 0; i < n_elements; ++i) {
+        double total_energy = 0.0;
+        for (int k = 0; k < modes; ++k) {
+            double val = u_ptr[i * modes + k];
+            total_energy += (val * val) / (2.0 * k + 1.0);
+        }
+        double val_top = u_ptr[i * modes + p];
+        double top_energy = (val_top * val_top) / (2.0 * p + 1.0);
+
+        if (total_energy > 1e-14) {
+            double ratio = top_energy / total_energy;
+            sensor[i] = std::log10(ratio + 1e-16);
+        } else {
+            sensor[i] = -16.0;
+        }
+    }
+    return sensor;
+}
+
+int DiscontinuousGalerkinSolver::get_troubled_cell_count(double threshold) const {
+    if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
+    if (poly_order < 1) return 0;
+
+    auto sensor = compute_modal_sensor();
+    int count = 0;
+    #pragma omp parallel for reduction(+:count) schedule(static)
+    for (size_t i = 0; i < sensor.size(); ++i) {
+        if (sensor[i] > threshold) {
+            count++;
+        }
+    }
+    return count;
 }

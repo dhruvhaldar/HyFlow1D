@@ -4,7 +4,7 @@
 [![Language: C++17](https://img.shields.io/badge/Language-C%2B%2B17-blue.svg)](https://en.cppreference.com/w/cpp/17)
 [![Build: CMake](https://img.shields.io/badge/Build-CMake-brightgreen.svg)](CMakeLists.txt)
 [![Parallelism: MPI + OpenMP](https://img.shields.io/badge/Parallelism-MPI%20%2B%20OpenMP-orange.svg)](src/main.cpp)
-[![Tests: CTest](https://img.shields.io/badge/Tests-8%2F8%20Passing-brightgreen.svg)](tests/)
+[![Tests: CTest](https://img.shields.io/badge/Tests-10%2F10%20Passing-brightgreen.svg)](tests/)
 
 **HyFlow1D** is a lightweight, high-performance research Proof of Concept (PoC) code implementing a coupled **Hybrid Finite Volume (FV) / Discontinuous Galerkin (DG)** solver for 1D aerodynamic flows and hyperbolic conservation laws.
 
@@ -15,18 +15,24 @@ As a research testbed, HyFlow1D demonstrates domain-decomposition coupling: depl
 ## Features
 
 - **Hybrid Domain Coupling**: Bidirectional interface coupling linking a 1st-order Finite Volume scheme with a high-order Discontinuous Galerkin formulation.
+- **Governing Equations & Numerical Fluxes**:
+  - Linear advection ($\partial_t u + a \partial_x u = 0$) and nonlinear Burgers' equation ($\partial_t u + \partial_x (\frac{1}{2} u^2) = 0$).
+  - Monotone Local Lax-Friedrichs (**Rusanov**) numerical interface flux handling shocks, rarefactions, and bidirectional waves.
+- **Persson & Peraire Modal Shock Sensor**:
+  - Modal energy decay sensor $S_e = \log_{10} \left( \frac{\hat{u}_P^2 / (2P+1)}{\sum \hat{u}_k^2 / (2k+1)} + \epsilon \right)$ to detect shocks and steep gradient elements.
 - **Hybrid HPC Parallelism (MPI + OpenMP)**:
   - Distributed-memory domain decomposition using non-blocking MPI halo communication (`MPI_Isend`, `MPI_Irecv`, `MPI_Waitall`).
   - Shared-memory multi-threading within subdomains using OpenMP parallel loops and reductions.
 - **Higher-Order Time Integration**: Multi-stage 3rd-order Strong Stability Preserving Runge-Kutta (**SSPRK3**) integrator alongside 1st-order Forward Euler.
 - **Arbitrary Order DG**: Discontinuous Galerkin implementation supporting arbitrary polynomial degrees (default $P = 3$).
 - **Conservation & Invariant Diagnostics**: Real-time analytical tracking of total conserved mass ($\int u \, dx$) and kinetic energy ($\frac{1}{2}\int u^2 \, dx$) across the hybrid boundary.
+- **ParaView VTK Export**: Built-in ASCII `.vtu` (VTK XML UnstructuredGrid) export for 2D/3D ParaView post-processing.
 - **Rigorous Numerics**: Gauss-Legendre quadrature integration with recurrence-optimized Legendre basis evaluations and analytical stiffness matrix computations.
 - **Security-Hardened I/O**: Atomic file creation with `O_NOFOLLOW` symlink protections, path traversal sanitization, and restricted directory permissions (`0700`/`0600`).
 - **Dual Visualization Ecosystem**:
   - Python CLI tool with color-coded terminal telemetry, inline sparklines, and matplotlib figures.
-  - Interactive full-stack web dashboard built with Vite, React 19, Tailwind CSS, Recharts, and Three.js backed by Bun.
-- **Automated Test Suite**: 8 unit, integration, and security test targets covering numerical integration, solver convergence, conservation, OpenMP thread consistency, and distributed MPI communication.
+  - Interactive full-stack web dashboard built with Vite, React 19, Tailwind CSS, Recharts, and Three.js backed by Node.js or Bun.
+- **Automated Test Suite**: 10 unit, integration, physics, and security test targets covering numerical integration, solver convergence, Burgers equation, shock sensor decay, OpenMP thread consistency, and distributed MPI communication.
 
 ---
 
@@ -117,17 +123,25 @@ Between every intermediate stage, `exchange_boundaries()` is evaluated so interf
 
 ## Mathematical and Numerical Formulation
 
-### 1. Governing Equation
+### 1. Governing Equations & Numerical Fluxes
 
-HyFlow1D solves the 1D linear advection equation for a scalar conserved quantity $u(x, t)$:
+HyFlow1D supports both linear advection and nonlinear conservation laws for scalar quantity $u(x, t)$:
 
-$$\frac{\partial u}{\partial t} + a \frac{\partial u}{\partial x} = 0, \quad x \in [0, 1], \; t \in [0, t_{\text{final}}]$$
+$$\frac{\partial u}{\partial t} + \frac{\partial f(u)}{\partial x} = 0, \quad x \in [0, 1], \; t \in [0, t_{\text{final}}]$$
 
-with constant advection velocity $a = 1.0$ and periodic or transmissive boundary conditions. The default benchmark propagates a smooth Gaussian pulse:
+1. **Linear Advection**: $f(u) = a u$ with constant velocity $a = 1.0$. The initial condition is a smooth Gaussian pulse:
 
-$$u(x, 0) = \exp\left(-\frac{(x - x_0)^2}{2 \sigma^2}\right)$$
+$$u(x, 0) = \exp\left(-\frac{(x - x_0)^2}{2 \sigma^2}\right), \quad x_0 = 0.25, \; \sigma = 0.05$$
 
-where $x_0 = 0.25$ and $\sigma = 0.05$.
+2. **Nonlinear Burgers' Equation**: $f(u) = \frac{1}{2} u^2$. Represents nonlinear convective steepening and shock formation. The benchmark profile is a compression wave:
+
+$$u(x, 0) = 0.5 + 0.5 \sin(2\pi x)$$
+
+Interfaces between elements (and subdomains) employ the monotone **Local Lax-Friedrichs (Rusanov)** numerical flux:
+
+$$F(u_L, u_R) = \frac{1}{2}\left(f(u_L) + f(u_R)\right) - \frac{1}{2}\lambda_{\max}(u_R - u_L)$$
+
+where $\lambda_{\max} = \max\left(|f'(u_L)|, \, |f'(u_R)|\right)$ is the maximum local characteristic wave speed. For linear advection with $a > 0$, Rusanov reduces identically to the standard upwind flux $a u_L$.
 
 ### 2. Domain Decomposition
 
@@ -141,13 +155,9 @@ For cell $i \in [1, N_{\text{FV}}]$ with spatial extent $[x_{i-1/2}, x_{i+1/2}]$
 
 $$\bar{u}_i(t) = \frac{1}{\Delta x_i} \int_{x_{i-1/2}}^{x_{i+1/2}} u(x, t) \, dx$$
 
-Integrating the conservation law yields the semi-discrete system:
+Integrating the conservation law yields the conservative semi-discrete system:
 
 $$\frac{d \bar{u}_i}{dt} = -\frac{1}{\Delta x_i} \left( F_{i+1/2} - F_{i-1/2} \right)$$
-
-Using an upwind numerical flux ($a > 0$):
-
-$$F_{i+1/2} = a \, \bar{u}_i$$
 
 ### 4. Discontinuous Galerkin Method (DG)
 
@@ -161,20 +171,30 @@ $$\int_{-1}^1 P_k(\xi) P_m(\xi) \, d\xi = \frac{2}{2k+1} \delta_{km}$$
 
 Multiplying by test functions $P_k(\xi)$, integrating over the element, and applying integration by parts yields the weak formulation:
 
-$$\frac{\Delta x_e}{2} \frac{2}{2k+1} \frac{d \hat{u}_k^e}{dt} - a \int_{-1}^1 u_h^e(\xi) \frac{d P_k}{d\xi} \, d\xi + \left[ \hat{F}(u_h^e) P_k(\xi) \right]_{-1}^{1} = 0$$
+$$\frac{\Delta x_e}{2k+1} \frac{d \hat{u}_k^e}{dt} = \int_{-1}^1 f(u_h^e(\xi)) \frac{d P_k}{d\xi} \, d\xi - \left( \hat{F}_{e+1/2} - (-1)^k \hat{F}_{e-1/2} \right)$$
 
 - **Mass Matrix**: Diagonal with entries $M_{kk} = \frac{\Delta x_e}{2k+1}$.
-- **Stiffness Matrix**: $K_{km} = \int_{-1}^1 P_m(\xi) P_k'(\xi) \, d\xi$, which is strictly lower-triangular due to polynomial parity and orthogonality.
-- **Interface Numerical Flux**: Upwind Riemann flux across element boundaries.
+- **Volume Integrals**: For linear advection, evaluated using precomputed analytical stiffness matrices. For nonlinear Burgers' equation, evaluated using Gauss-Legendre quadrature ($N = P + 2$ points) exact for polynomials up to degree $2N-1$.
+- **Mode $k=0$ Conservation**: Since $P_0'(\xi) = 0$, the volume integral vanishes for the zeroth mode, ensuring exact cell-average conservation identically mirroring Finite Volume schemes.
 
-### 5. Hybrid Interface Coupling
+### 5. Persson & Peraire Modal Shock Sensor
+
+To detect shocks, steep fronts, or under-resolved gradient regions without empirical tuning, HyFlow1D implements the Persson & Peraire (2002) modal decay sensor. In element $e$, the relative energy in the highest Legendre polynomial mode $P$ is:
+
+$$S_e = \log_{10} \left( \frac{\frac{\hat{u}_P^2}{2P+1}}{\sum_{k=0}^P \frac{\hat{u}_k^2}{2k+1}} + 10^{-16} \right)$$
+
+- **Smooth Waveforms**: Legendre coefficients decay exponentially ($\hat{u}_k \sim \mathcal{O}(e^{-\sigma k})$), yielding $S_e \ll -4.0$.
+- **Shocks / Discontinuities**: Decay slows to $\mathcal{O}(1/k)$, causing $S_e$ to jump to $\approx -1.5$ to $-3.0$.
+- Elements with $S_e > S_0$ (default threshold $S_0 = -3.0$) are flagged as troubled elements.
+
+### 6. Hybrid Interface Coupling
 
 At the coupling boundary $x = 0.5$:
-1. The right boundary of the FV domain passes its cell average $\bar{u}_{N_{\text{FV}}}$ to the inflow face of the first DG element as an exterior Dirichlet state.
-2. The left boundary of the first DG element evaluates its polynomial reconstruction $u_h^1(\xi = -1)$ to supply the numerical flux $F_{\text{interface}} = a \, \bar{u}_{N_{\text{FV}}}$ entering the DG domain, guaranteeing strict mass conservation across the hybrid boundary.
+1. The right boundary of the FV domain passes its cell average $\bar{u}_{N_{\text{FV}}}$ to the inflow face of the first DG element.
+2. The left boundary of the first DG element evaluates its polynomial reconstruction $u_h^1(\xi = -1)$ to supply boundary state to the Rusanov interface flux $F_{\text{interface}} = F(\bar{u}_{N_{\text{FV}}}, u_h^1(-1))$, guaranteeing strict mass conservation across the hybrid boundary.
 3. Both subdomains are advanced simultaneously in time using SSPRK3 with a global time step restricted by the DG CFL stability criterion:
 
-$$\Delta t = \text{CFL} \cdot \frac{\min\left(\Delta x_{\text{FV}}, \, \frac{\Delta x_{\text{DG}}}{2P + 1}\right)}{a}$$
+$$\Delta t = \text{CFL} \cdot \frac{\min\left(\Delta x_{\text{FV}}, \, \frac{\Delta x_{\text{DG}}}{2P + 1}\right)}{\lambda_{\max}}$$
 
 ---
 
@@ -209,10 +229,12 @@ HyFlow1D/
 │   ├── test_hybrid_security.cpp# Hybrid coupling exception and security tests
 │   ├── test_ssprk3.cpp         # Multi-stage SSPRK3 time integration test
 │   ├── test_openmp.cpp         # OpenMP thread equivalence test
-│   └── test_mpi.cpp            # Distributed MPI halo communication test
+│   ├── test_mpi.cpp            # Distributed MPI halo communication test
+│   ├── test_burgers.cpp        # Nonlinear Burgers' equation & Rusanov flux test
+│   └── test_sensor.cpp         # Persson & Peraire modal shock sensor test
 └── webapp/                     # Interactive web visualization dashboard
-    ├── package.json            # Web app dependencies (Bun, React, Three.js)
-    ├── server.ts               # Bun backend API server
+    ├── package.json            # Web app dependencies (React, Three.js, Recharts)
+    ├── server.ts               # Universal Node.js / Bun backend API server
     └── src/                    # Frontend React dashboard components
 ```
 
@@ -227,7 +249,7 @@ HyFlow1D/
 - **OpenMP** (optional): OpenMP 4.5+ for multi-threading.
 - **MPI** (optional): OpenMPI or MPICH for distributed-memory execution.
 - **Python** (optional): Python 3.7+ with `matplotlib` for CLI plots.
-- **Bun** (optional): Bun runtime for running the web dashboard.
+- **Node.js / Bun** (optional): Node.js (>= 20) or Bun for the web dashboard.
 
 ### Compilation
 
@@ -262,26 +284,32 @@ The build process produces the `hyflow1d` executable and all test targets within
 | :--- | :--- | :--- |
 | `-h` | `--help` | Display command usage and simulation details |
 | `-v` | `--verbose` | Output step-by-step time log (disables animated progress bar) |
-| `-o <dir>` | `--output <dir>` | Set output directory for CSV files (default: `output`) |
+| `-o <dir>` | `--output <dir>` | Set output directory for CSV / VTK files (default: `output`) |
 | `-c` | `--clean` | Remove previous `solution_*.csv` files before running |
 | `-n` | `--dry-run` | Print simulation configuration and exit without running |
 | `-t <N>` | `--threads <N>` | Set number of OpenMP worker threads |
 | `-i <name>`| `--integrator <name>`| Select time integrator (`ssprk3` or `euler`, default: `ssprk3`) |
+| `-e <name>`| `--equation <name>`  | Select equation (`advection` or `burgers`, default: `advection`) |
+| | `--vtk` | Export solution to VTK XML (`.vtu`) for ParaView visualization |
+| | `--sensor-threshold <T>` | Set modal shock sensor threshold (default: `-3.0`) |
 
 #### Execution Examples
 
 ```bash
-# Single-process execution using SSPRK3 and 4 OpenMP threads
+# Linear advection with SSPRK3 and 4 OpenMP threads
 ./build/hyflow1d --clean -t 4 --integrator ssprk3
 
+# Nonlinear Burgers' equation with shock capturing and ParaView VTK export
+./build/hyflow1d --clean -e burgers -i ssprk3 --vtk
+
 # Distributed execution across 2 MPI ranks (Rank 0: FV, Rank 1: DG)
-mpirun -n 2 ./build/hyflow1d --clean
+mpirun -n 2 ./build/hyflow1d --clean -e burgers --vtk
 
 # Hybrid MPI + OpenMP: 2 MPI ranks with 4 threads each
-OMP_NUM_THREADS=4 mpirun -n 2 ./build/hyflow1d --clean
+OMP_NUM_THREADS=4 mpirun -n 2 ./build/hyflow1d --clean -e burgers
 
 # Perform a dry run to verify configuration
-./build/hyflow1d --dry-run
+./build/hyflow1d --dry-run -e burgers
 ```
 
 ---
@@ -303,16 +331,24 @@ The script displays terminal diagnostics, including:
 - Min/max value tracking and wave peak decay analysis.
 - Domain segmentation highlighting the FV and DG subdomains.
 
-### 2. Full-Stack Web Dashboard
+### 2. ParaView VTK Visualization
+
+Passing the `--vtk` flag generates `output/solution_final.vtu` (VTK XML UnstructuredGrid):
+
+1. Open **ParaView** (`paraview output/solution_final.vtu`).
+2. Click **Apply**.
+3. Choose the `u` scalar field to visualize 1D wave profiles, shock fronts, and element reconstructions.
+
+### 3. Full-Stack Web Dashboard
 
 ```bash
 cd webapp
-bun install
-bun run server.ts &
-bun run dev
+pnpm install # or: npm install / bun install
+node server.ts & # or: bun run server.ts &
+pnpm run dev # or: npm run dev / bun run dev
 ```
 
-Navigate to `http://localhost:5173` to run simulations and inspect results in real time. Refer to [webapp/README.md](webapp/README.md) for full instructions.
+Navigate to `http://localhost:5173` to configure equation types, adjust thread counts, run simulations, and inspect results with real-time shock sensor metrics. Refer to [webapp/README.md](webapp/README.md) for full instructions.
 
 ---
 
@@ -325,7 +361,7 @@ cd build
 ctest --output-on-failure
 ```
 
-### Test Suite Overview (8 Test Targets)
+### Test Suite Overview (10 Test Targets)
 
 1. **`numerics_test`** (`tests/test_numerics.cpp`): Legendre orthogonality and Gauss-Legendre quadrature exactness.
 2. **`solvers_test`** (`tests/test_solvers.cpp`): Individual FV and DG solver discretization verification.
@@ -335,6 +371,8 @@ ctest --output-on-failure
 6. **`ssprk3_test`** (`tests/test_ssprk3.cpp`): 3rd-order SSP Runge-Kutta time accuracy and conservation.
 7. **`openmp_test`** (`tests/test_openmp.cpp`): Verification of identical numerical results between 1 and $N$ OpenMP threads.
 8. **`mpi_test`** (`tests/test_mpi.cpp`): Distributed execution verifying non-blocking halo exchanges and distributed reductions across 2 MPI ranks.
+9. **`burgers_test`** (`tests/test_burgers.cpp`): Nonlinear Burgers' equation flux conservation and multi-stage time integration.
+10. **`sensor_test`** (`tests/test_sensor.cpp`): Persson & Peraire modal shock sensor verification distinguishing smooth waveforms from steep fronts.
 
 ### Performance Benchmarks
 

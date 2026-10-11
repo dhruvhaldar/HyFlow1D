@@ -106,6 +106,13 @@ if(MPI_CXX_FOUND)
     add_test(NAME mpi_test COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 2 $<TARGET_FILE:test_mpi>)
 endif()
 
+# Nonlinear Physics & Shock Sensor tests
+add_executable(test_burgers tests/test_burgers.cpp ${HYFLOW_CORE_SOURCES})
+add_test(NAME burgers_test COMMAND test_burgers)
+
+add_executable(test_sensor tests/test_sensor.cpp ${HYFLOW_CORE_SOURCES})
+add_test(NAME sensor_test COMMAND test_sensor)
+
 # Benchmarks
 add_executable(benchmark_dg tests/benchmark_dg.cpp src/dg_solver.cpp src/numerics.cpp)
 add_executable(benchmark_update tests/benchmark_update.cpp src/dg_solver.cpp src/numerics.cpp)

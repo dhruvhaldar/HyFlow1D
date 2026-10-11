@@ -88,15 +88,20 @@ def parse_header(filepath):
                         metadata['t'] = float(content.split('=')[1])
                     except ValueError:
                         pass
-                elif content.startswith('x_domain='):
+                elif 'x_domain=' in content:
                     try:
-                        parts = content.split('=')[1].split(':')
-                        if len(parts) == 3:
-                            metadata['domain'] = {
-                                'start': float(parts[0]),
-                                'interface': float(parts[1]),
-                                'end': float(parts[2])
-                            }
+                        tokens = content.split()
+                        for token in tokens:
+                            if token.startswith('x_domain='):
+                                parts = token.split('=')[1].split(':')
+                                if len(parts) == 3:
+                                    metadata['domain'] = {
+                                        'start': float(parts[0]),
+                                        'interface': float(parts[1]),
+                                        'end': float(parts[2])
+                                    }
+                            elif token.startswith('equation='):
+                                metadata['equation'] = token.split('=')[1]
                     except ValueError:
                         pass
     except Exception:

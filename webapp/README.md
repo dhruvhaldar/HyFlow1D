@@ -4,11 +4,11 @@ Interactive web interface and visualization dashboard for the HyFlow1D hybrid Fi
 
 ## Overview
 
-The web dashboard allows running simulations directly through a modern web UI, rendering interactive real-time solution curves and a Three.js 3D background.
+The web dashboard allows configuring and executing simulations directly through a modern web UI, rendering interactive real-time solution curves, physical conservation diagnostics, and a Three.js 3D background.
 
 ## Technology Stack
 
-- **Runtime**: [Bun](https://bun.sh/)
+- **Runtime**: [Node.js](https://nodejs.org/) (>= 20) or [Bun](https://bun.sh/)
 - **Frontend**: [React 19](https://react.dev/), [TypeScript](https://www.typescriptlang.org/)
 - **Bundler**: [Vite 8](https://vitejs.dev/)
 - **Styling**: [Tailwind CSS](https://tailwindcss.com/)
@@ -17,41 +17,38 @@ The web dashboard allows running simulations directly through a modern web UI, r
 
 ## Architecture
 
-- **`server.ts`**: Lightweight Bun API server running on port 3001.
-  - `POST /api/run`: Triggers the compiled C++ solver (`../build/hyflow1d --clean`).
-  - `GET /api/results`: Reads the generated CSV output (`solution_final.csv`) and serves structured JSON data points to the frontend.
-- **`src/App.tsx`**: Main dashboard interface featuring execution controls, real-time status indicators, and Recharts line visualizations.
+- **`server.ts`**: Universal Node.js / Bun API server listening on port 3001.
+  - `POST /api/run`: Spawns the compiled C++ solver (`../build/hyflow1d`) with configurable equation (`advection` or `burgers`), integrator (`ssprk3` or `euler`), and OpenMP thread count. Parses execution diagnostics and returns structured JSON metrics.
+  - `GET /api/results`: Reads the generated CSV output (`solution_final.csv`) and serves coordinate points to the frontend.
+- **`src/App.tsx`**: Main dashboard interface featuring parameter controls, real-time diagnostic cards (mass error, kinetic retention, Persson-Peraire modal shock sensor), and Recharts line visualizations with domain partition markers.
 - **`src/components/Background.tsx`**: Three.js particle wave canvas background.
 
 ## Getting Started
 
 ### Prerequisites
 
-Ensure [Bun](https://bun.sh/) is installed:
-```bash
-curl -fsSL https://bun.sh/install | bash
-```
-
 Ensure the C++ solver is built:
 ```bash
-cd ..
 mkdir -p build && cd build
-cmake .. && make
+cmake .. && make -j$(nproc)
 cd ../webapp
 ```
 
 ### Installation
 
-Install frontend and server dependencies:
+Install dependencies using `pnpm`, `npm`, or `bun`:
 ```bash
-bun install
+pnpm install
+# or: npm install
+# or: bun install
 ```
 
 ### Running the Backend Server
 
-Start the Bun API server:
+Start the API server (supports Node.js directly or Bun):
 ```bash
-bun run server.ts
+node server.ts
+# or: bun run server.ts
 ```
 The API server listens on `http://localhost:3001`.
 
@@ -59,13 +56,15 @@ The API server listens on `http://localhost:3001`.
 
 In a separate terminal, launch the Vite development server:
 ```bash
-bun run dev
+pnpm run dev
+# or: npm run dev
+# or: bun run dev
 ```
 Open your browser at the displayed local URL (typically `http://localhost:5173`).
 
 ### Production Build
 
 ```bash
-bun run build
-bun run preview
+pnpm run build
+pnpm run preview
 ```

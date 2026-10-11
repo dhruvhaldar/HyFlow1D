@@ -40,6 +40,19 @@ public:
     double compute_total_mass() const;
     double compute_total_energy() const;
 
+    // Equation type configuration
+    void set_equation_type(EquationType eq) {
+        if (left_domain) left_domain->set_equation_type(eq);
+        if (right_domain) right_domain->set_equation_type(eq);
+    }
+    EquationType get_equation_type() const {
+        return left_domain ? left_domain->get_equation_type() : EquationType::LinearAdvection;
+    }
+
+    // Modal shock sensor diagnostics
+    std::vector<double> compute_modal_sensor() const;
+    int get_troubled_cell_count(double threshold = -3.0) const;
+
     // Solver accessors
     const Solver1D* get_left_domain() const { return left_domain.get(); }
     const Solver1D* get_right_domain() const { return right_domain.get(); }

@@ -126,4 +126,39 @@ std::vector<std::pair<double, double>> MpiHybridDomain::gather_solution() const 
     return global_sol;
 }
 
+int MpiHybridDomain::get_troubled_cell_count(double threshold) const {
+    int local_count = local_domain ? local_domain->get_troubled_cell_count(threshold) : 0;
+    int global_count = 0;
+    MPI_Allreduce(&local_count, &global_count, 1, MPI_INT, MPI_SUM, comm);
+    return global_count;
+}
+
+std::vector<double> MpiHybridDomain::gather_modal_sensor() const {
+    std::vector<double> local_sensor = local_domain ? local_domain->compute_modal_sensor() : std::vector<double>{};
+    if (local_sensor.empty() && local_domain) {
+        local_sensor.assign(local_domain->get_num_elements(), -16.0);
+    }
+
+    if (mpi_rank != 0) {
+        int count = static_cast<int>(local_sensor.size());
+        MPI_Send(&count, 1, MPI_INT, 0, 300, comm);
+        if (count > 0) {
+            MPI_Send(local_sensor.data(), count, MPI_DOUBLE, 0, 301, comm);
+        }
+        return {};
+    }
+
+    std::vector<double> global_sensor = local_sensor;
+    for (int r = 1; r < mpi_size; ++r) {
+        int count = 0;
+        MPI_Recv(&count, 1, MPI_INT, r, 300, comm, MPI_STATUS_IGNORE);
+        if (count > 0) {
+            std::vector<double> r_buf(count);
+            MPI_Recv(r_buf.data(), count, MPI_DOUBLE, r, 301, comm, MPI_STATUS_IGNORE);
+            global_sensor.insert(global_sensor.end(), r_buf.begin(), r_buf.end());
+        }
+    }
+    return global_sensor;
+}
+
 #endif // HYFLOW_ENABLE_MPI
