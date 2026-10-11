@@ -36,6 +36,6 @@ make
 ## Running
 
 ```bash
-./hybrid_solver
+./hyflow1d
 python3 ../scripts/plot_results.py
 ```

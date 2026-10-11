@@ -322,8 +322,7 @@ int main(int argc, char* argv[]) {
         if (!is_tty) {
             Color::enabled = false;
         } else {
-            // Palette UX: Enable thousands separator for human-readable output
-            // Only apply if is_tty is true (human is watching), otherwise keep raw numbers
+            // Enable thousands separator for human-readable output when attached to a terminal
             std::locale comma_locale(std::locale::classic(), new comma_numpunct());
             std::cout.imbue(comma_locale);
         }
@@ -393,7 +392,7 @@ int main(int argc, char* argv[]) {
             if (!fs::is_symlink(output_dir)) {
                  auto perms = fs::status(output_dir).permissions();
                  if ((perms & (fs::perms::group_all | fs::perms::others_all)) != fs::perms::none) {
-                      std::cerr << Color::Yellow << "⚠️  Warning: Output directory '" << output_dir << "' has insecure permissions (Group/World accessible)." << Color::Reset << std::endl;
+                      std::cerr << Color::Yellow << "Warning: Output directory '" << output_dir << "' has insecure permissions (Group/World accessible)." << Color::Reset << std::endl;
                       std::cerr << "    Attempting to secure it (0700)... ";
                       try {
                           fs::permissions(output_dir, fs::perms::owner_all, fs::perm_options::replace | fs::perm_options::nofollow);
@@ -403,10 +402,10 @@ int main(int argc, char* argv[]) {
                       }
                  }
             } else {
-                 std::cerr << Color::Yellow << "⚠️  Warning: Output directory is a symbolic link. Ensure target permissions are secure manually." << Color::Reset << std::endl;
+                 std::cerr << Color::Yellow << "Warning: Output directory is a symbolic link. Ensure target permissions are secure manually." << Color::Reset << std::endl;
             }
 
-            // Palette UX: Warn if output directory contains previous results
+            // Warn if output directory contains previous results
             // This prevents confusion when new results are mixed with old ones (e.g. fewer steps)
             bool has_solution_files = false;
             std::vector<fs::path> files_to_remove;
@@ -428,9 +427,9 @@ int main(int argc, char* argv[]) {
                 for (const auto& p : files_to_remove) {
                     fs::remove(p);
                 }
-                std::cout << Color::Blue << "ℹ️  Cleaned " << files_to_remove.size() << " file(s) from '" << output_dir << "'." << Color::Reset << std::endl;
+                std::cout << Color::Blue << "Cleaned " << files_to_remove.size() << " file(s) from '" << output_dir << "'." << Color::Reset << std::endl;
             } else if (has_solution_files) {
-                 std::cout << Color::Yellow << "⚠️  Warning: Output directory '" << output_dir << "' contains existing solution files.\n"
+                 std::cout << Color::Yellow << "Warning: Output directory '" << output_dir << "' contains existing solution files.\n"
                            << "    New results may mix with old ones. Use " << Color::Bold << "--clean" << Color::Reset << Color::Yellow << " to remove them." << Color::Reset << "\n" << std::endl;
             }
         }
@@ -451,7 +450,7 @@ int main(int argc, char* argv[]) {
         int n_dg = 10;
         int p_order = 3;
 
-        // Palette UX: Construct domain metadata string for visualization
+        // Construct domain metadata string for visualization
         std::ostringstream meta_ss;
         meta_ss << "x_domain=" << x_start << ":" << x_interface << ":" << x_end;
         std::string domain_meta = meta_ss.str();
@@ -495,7 +494,7 @@ int main(int argc, char* argv[]) {
                   << std::endl;
 
         if (dry_run) {
-            std::cout << Color::Green << "✔ Dry run complete." << Color::Reset << " Configuration valid.\n"
+            std::cout << Color::Green << "Dry run complete." << Color::Reset << " Configuration valid.\n"
                       << "  (No simulation performed, no files written)" << std::endl;
             return 0;
         }
@@ -512,7 +511,7 @@ int main(int argc, char* argv[]) {
                 std::cerr << "    Stopped at step " << step << " (t=" << t << ")" << std::endl;
                 std::cerr << "    Partial results saved in " << Color::Bold << output_dir << "/" << Color::Reset << std::endl;
 
-                // Palette UX: Suggest visualization for partial results
+                // Suggest visualization for partial results
                 std::string script_path = "scripts/plot_results.py";
                 if (!fs::exists(script_path) && fs::exists("../scripts/plot_results.py")) {
                     script_path = "../scripts/plot_results.py";
@@ -563,7 +562,7 @@ int main(int argc, char* argv[]) {
         std::chrono::duration<double> total_elapsed = end_time - start_time;
         double steps_per_sec = (total_elapsed.count() > 0) ? (total_steps / total_elapsed.count()) : 0.0;
 
-        std::cout << Color::BoldGreen << "✔ Simulation Complete in ";
+        std::cout << Color::BoldGreen << "Simulation complete in ";
         if (total_elapsed.count() < 1.0) {
              std::cout << std::setprecision(0) << (total_elapsed.count() * 1000.0) << "ms";
         } else {
@@ -572,7 +571,7 @@ int main(int argc, char* argv[]) {
         std::cout << " (" << std::setprecision(0) << steps_per_sec << " steps/s)." << Color::Reset << "\n"
                   << "Results saved in " << Color::Bold << output_dir << "/" << Color::Reset << std::endl;
 
-        // Palette UX: Suggest next step with smart path detection
+        // Suggest next step with smart path detection
         std::string script_path = "scripts/plot_results.py";
         if (!fs::exists(script_path)) {
             if (fs::exists("../scripts/plot_results.py")) {

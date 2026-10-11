@@ -1,73 +1,71 @@
-# React + TypeScript + Vite
+# HyFlow1D Web Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Interactive web interface and visualization dashboard for the HyFlow1D hybrid Finite Volume / Discontinuous Galerkin aerodynamic flow solver.
 
-Currently, two official plugins are available:
+## Overview
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+The web dashboard allows running simulations directly through a modern web UI, rendering interactive real-time solution curves and a Three.js 3D background.
 
-## React Compiler
+## Technology Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Runtime**: [Bun](https://bun.sh/)
+- **Frontend**: [React 19](https://react.dev/), [TypeScript](https://www.typescriptlang.org/)
+- **Bundler**: [Vite 8](https://vitejs.dev/)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
+- **Plotting**: [Recharts](https://recharts.org/)
+- **3D Graphics**: [Three.js](https://threejs.org/) via [@react-three/fiber](https://docs.pmnd.rs/react-three-fiber) and [@react-three/drei](https://github.com/pmndrs/drei)
 
-## Expanding the ESLint configuration
+## Architecture
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- **`server.ts`**: Lightweight Bun API server running on port 3001.
+  - `POST /api/run`: Triggers the compiled C++ solver (`../build/hyflow1d --clean`).
+  - `GET /api/results`: Reads the generated CSV output (`solution_final.csv`) and serves structured JSON data points to the frontend.
+- **`src/App.tsx`**: Main dashboard interface featuring execution controls, real-time status indicators, and Recharts line visualizations.
+- **`src/components/Background.tsx`**: Three.js particle wave canvas background.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Getting Started
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### Prerequisites
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Ensure [Bun](https://bun.sh/) is installed:
+```bash
+curl -fsSL https://bun.sh/install | bash
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Ensure the C++ solver is built:
+```bash
+cd ..
+mkdir -p build && cd build
+cmake .. && make
+cd ../webapp
+```
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Installation
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Install frontend and server dependencies:
+```bash
+bun install
+```
+
+### Running the Backend Server
+
+Start the Bun API server:
+```bash
+bun run server.ts
+```
+The API server listens on `http://localhost:3001`.
+
+### Running the Frontend
+
+In a separate terminal, launch the Vite development server:
+```bash
+bun run dev
+```
+Open your browser at the displayed local URL (typically `http://localhost:5173`).
+
+### Production Build
+
+```bash
+bun run build
+bun run preview
 ```
