@@ -40,12 +40,22 @@ public:
     void step_euler(double dt, double advection_speed);
     void step_ssprk3(double dt, double advection_speed);
 
+    // Equation type configuration
+    void set_equation_type(EquationType eq) {
+        if (local_domain) local_domain->set_equation_type(eq);
+    }
+    EquationType get_equation_type() const {
+        return local_domain ? local_domain->get_equation_type() : EquationType::LinearAdvection;
+    }
+
     // Distributed reductions across all MPI ranks
     double compute_total_mass() const;
     double compute_total_energy() const;
+    int get_troubled_cell_count(double threshold = -3.0) const;
 
     // Gather solution from all ranks onto Rank 0 (for unified I/O)
     std::vector<std::pair<double, double>> gather_solution() const;
+    std::vector<double> gather_modal_sensor() const;
 };
 
 #endif // HYFLOW_ENABLE_MPI

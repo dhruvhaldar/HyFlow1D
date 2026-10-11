@@ -87,6 +87,17 @@ double HybridDomain::compute_total_energy() const {
     return left_domain->compute_total_energy() + right_domain->compute_total_energy();
 }
 
+std::vector<double> HybridDomain::compute_modal_sensor() const {
+    std::vector<double> sensor(left_domain->get_num_elements(), -16.0);
+    auto right_sensor = right_domain->compute_modal_sensor();
+    sensor.insert(sensor.end(), right_sensor.begin(), right_sensor.end());
+    return sensor;
+}
+
+int HybridDomain::get_troubled_cell_count(double threshold) const {
+    return left_domain->get_troubled_cell_count(threshold) + right_domain->get_troubled_cell_count(threshold);
+}
+
 std::vector<std::pair<double, double>> HybridDomain::get_solution() const {
     auto sol_left = left_domain->get_solution();
     auto sol_right = right_domain->get_solution();

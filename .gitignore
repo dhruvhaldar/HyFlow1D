@@ -2,4 +2,8 @@ build/
 output/
 *.csv
 *.png
+*.vtu
 __pycache__/
+webapp/node_modules/
+webapp/dist/
+*.tsbuildinfo

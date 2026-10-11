@@ -70,6 +70,10 @@ public:
     void set_left_neighbor_value(double val) override;
     void set_right_neighbor_value(double val) override;
 
+    // Persson-Peraire modal shock sensor
+    std::vector<double> compute_modal_sensor() const override;
+    int get_troubled_cell_count(double threshold = -3.0) const override;
+
 private:
     // Helper to evaluate solution at local coordinate xi in [-1, 1] for element i
     double evaluate_element(int element_idx, double xi) const;

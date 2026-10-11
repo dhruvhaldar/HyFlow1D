@@ -2,8 +2,37 @@
 
 #include <vector>
 #include <cmath>
+#include <algorithm>
+#include "solver.hpp"
 
 namespace numerics {
+
+    // Physical conservation law flux f(u)
+    inline double flux(double u, EquationType eq, double a = 1.0) {
+        if (eq == EquationType::LinearAdvection) {
+            return a * u;
+        } else {
+            return 0.5 * u * u;
+        }
+    }
+
+    // Maximum local characteristic wave speed |f'(u)|
+    inline double wave_speed(double u, EquationType eq, double a = 1.0) {
+        if (eq == EquationType::LinearAdvection) {
+            return std::abs(a);
+        } else {
+            return std::abs(u);
+        }
+    }
+
+    // Local Lax-Friedrichs (Rusanov) numerical interface flux:
+    // F(u_L, u_R) = 0.5 * (f(u_L) + f(u_R)) - 0.5 * lambda_max * (u_R - u_L)
+    inline double rusanov_flux(double u_left, double u_right, EquationType eq, double a = 1.0) {
+        double f_l = flux(u_left, eq, a);
+        double f_r = flux(u_right, eq, a);
+        double lambda = std::max(wave_speed(u_left, eq, a), wave_speed(u_right, eq, a));
+        return 0.5 * (f_l + f_r) - 0.5 * lambda * (u_right - u_left);
+    }
 
     // Evaluate Legendre polynomial P_n(x) at x
     inline double legendre(int n, double x) {

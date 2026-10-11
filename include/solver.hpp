@@ -4,6 +4,12 @@
 #include <string>
 #include <memory>
 
+// Supported 1D conservation equations
+enum class EquationType {
+    LinearAdvection, // \partial_t u + a \partial_x u = 0
+    Burgers          // \partial_t u + \partial_x (0.5 * u^2) = 0
+};
+
 // Abstract base class for a solver (or domain partition)
 class Solver1D {
 public:
@@ -65,4 +71,16 @@ public:
 
     // Set the ghost value (or flux info) from the right neighbor
     virtual void set_right_neighbor_value(double val) = 0;
+
+    // --- Equation Type Support ---
+    virtual void set_equation_type(EquationType eq) { equation_type = eq; }
+    virtual EquationType get_equation_type() const { return equation_type; }
+
+    // --- Persson & Peraire Modal Shock Sensor Diagnostics ---
+    // Computes S_e = log10(E_P / E_total) for each element
+    virtual std::vector<double> compute_modal_sensor() const { return {}; }
+    virtual int get_troubled_cell_count(double /*threshold*/ = -3.0) const { return 0; }
+
+protected:
+    EquationType equation_type = EquationType::LinearAdvection;
 };

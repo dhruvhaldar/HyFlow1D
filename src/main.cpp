@@ -66,6 +66,62 @@ double initial_condition(double x) {
     return std::exp(-(x - center) * (x - center) / (2.0 * width * width));
 }
 
+// Initial Condition: Smooth Compression Wave (for Burgers' Equation)
+double burgers_initial_condition(double x) {
+    return 0.5 + 0.5 * std::sin(2.0 * M_PI * x);
+}
+
+// VTK XML UnstructuredGrid (.vtu) ASCII writer for ParaView visualization
+void write_vtk(const std::string& filename, const std::vector<std::pair<double, double>>& solution) {
+    std::ofstream out(filename);
+    if (!out.is_open()) {
+        std::cerr << Color::BoldRed << "Error opening VTK file: " << filename << Color::Reset << std::endl;
+        return;
+    }
+    const size_t num_points = solution.size();
+    if (num_points < 2) return;
+    const size_t num_cells = num_points - 1;
+
+    out << "<?xml version=\"1.0\"?>\n"
+        << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" byte_order=\"LittleEndian\">\n"
+        << "  <UnstructuredGrid>\n"
+        << "    <Piece NumberOfPoints=\"" << num_points << "\" NumberOfCells=\"" << num_cells << "\">\n"
+        << "      <Points>\n"
+        << "        <DataArray type=\"Float64\" NumberOfComponents=\"3\" format=\"ascii\">\n";
+    for (const auto& pt : solution) {
+        out << pt.first << " 0.0 0.0\n";
+    }
+    out << "        </DataArray>\n"
+        << "      </Points>\n"
+        << "      <PointData Scalars=\"u\">\n"
+        << "        <DataArray type=\"Float64\" Name=\"u\" format=\"ascii\">\n";
+    for (const auto& pt : solution) {
+        out << pt.second << "\n";
+    }
+    out << "        </DataArray>\n"
+        << "      </PointData>\n"
+        << "      <Cells>\n"
+        << "        <DataArray type=\"Int64\" Name=\"connectivity\" format=\"ascii\">\n";
+    for (size_t i = 0; i < num_cells; ++i) {
+        out << i << " " << (i + 1) << "\n";
+    }
+    out << "        </DataArray>\n"
+        << "        <DataArray type=\"Int64\" Name=\"offsets\" format=\"ascii\">\n";
+    for (size_t i = 0; i < num_cells; ++i) {
+        out << ((i + 1) * 2) << "\n";
+    }
+    out << "        </DataArray>\n"
+        << "        <DataArray type=\"UInt8\" Name=\"types\" format=\"ascii\">\n";
+    for (size_t i = 0; i < num_cells; ++i) {
+        out << "3\n"; // VTK_LINE
+    }
+    out << "        </DataArray>\n"
+        << "      </Cells>\n"
+        << "    </Piece>\n"
+        << "  </UnstructuredGrid>\n"
+        << "</VTKFile>\n";
+}
+
 // Security: Validate path to prevent directory traversal
 bool is_safe_path(const std::string& path_str) {
     if (path_str.empty()) return false;
@@ -154,16 +210,20 @@ void show_usage(const char* prog_name) {
               << "    " << Color::Yellow << "-c, --clean" << Color::Reset << "           Clean output directory before running\n"
               << "    " << Color::Yellow << "-n, --dry-run" << Color::Reset << "         Print configuration and exit without running\n"
               << "    " << Color::Yellow << "-t, --threads <N>" << Color::Reset << "     Set number of OpenMP threads\n"
-              << "    " << Color::Yellow << "-i, --integrator <name>" << Color::Reset << " Select time integrator ('ssprk3' or 'euler', default: ssprk3)\n\n"
+              << "    " << Color::Yellow << "-i, --integrator <name>" << Color::Reset << " Select time integrator ('ssprk3' or 'euler', default: ssprk3)\n"
+              << "    " << Color::Yellow << "-e, --equation <name>" << Color::Reset << "   Select governing equation ('advection' or 'burgers', default: advection)\n"
+              << "    " << Color::Yellow << "    --vtk" << Color::Reset << "               Export solution to VTK XML (.vtu) for ParaView\n"
+              << "    " << Color::Yellow << "    --sensor-threshold <T>" << Color::Reset << " Modal shock sensor threshold (default: -3.0)\n\n"
               << "  " << Color::Bold << "Simulation Details:" << Color::Reset << "\n"
               << "    Domain: [0, 1] (FV: [0, 0.5], DG: [0.5, 1])\n"
               << "    Config: 50 FV cells, 10 DG elements (P=3)\n"
-              << "    Physics: Linear Advection (a=1.0), Gaussian Pulse\n"
+              << "    Physics: Linear Advection (a=1.0) or Nonlinear Burgers' Equation\n"
+              << "    Diagnostics: Mass & Energy Invariants, Persson-Peraire Modal Shock Sensor\n"
               << "    Parallelism: MPI Distributed Domain Decomposition + OpenMP Multithreading\n\n"
               << "  " << Color::Bold << "Examples:" << Color::Reset << "\n"
               << "    " << prog_name << "\n"
-              << "    " << prog_name << " -t 4 --integrator ssprk3\n"
-              << "    mpirun -n 2 " << prog_name << " -o output_mpi\n";
+              << "    " << prog_name << " -e burgers --integrator ssprk3 --vtk\n"
+              << "    mpirun -n 2 " << prog_name << " -e burgers -o output_mpi\n";
 }
 
 int levenshtein_distance(std::string_view s1, std::string_view s2) {
@@ -191,7 +251,8 @@ void suggest_flag(const std::string& invalid_flag) {
     const std::vector<std::string> valid_flags = {
         "--help", "-h", "--verbose", "-v", "--output", "-o",
         "--clean", "-c", "--dry-run", "-n", "--threads", "-t",
-        "--integrator", "-i"
+        "--integrator", "-i", "--equation", "-e", "--vtk",
+        "--sensor-threshold"
     };
     std::string best_match;
     int min_dist = 100;
@@ -297,6 +358,9 @@ int main(int argc, char* argv[]) {
         bool dry_run = false;
         int num_threads = 0;
         std::string integrator_str = "ssprk3";
+        std::string equation_str = "advection";
+        bool export_vtk = false;
+        double sensor_threshold = -3.0;
         std::string output_dir = "output";
 
         bool is_tty = (mpi_rank == 0);
@@ -339,7 +403,7 @@ int main(int argc, char* argv[]) {
                 } else {
                     if (mpi_rank == 0) std::cerr << "Error: Output directory not specified after " << argv[i] << std::endl;
 #ifdef HYFLOW_ENABLE_MPI
-                    MPI_Finalize();
+                        MPI_Finalize();
 #endif
                     return 1;
                 }
@@ -354,6 +418,16 @@ int main(int argc, char* argv[]) {
             } else if (strcmp(argv[i], "-i") == 0 || strcmp(argv[i], "--integrator") == 0) {
                 if (i + 1 < argc) {
                     integrator_str = argv[++i];
+                }
+            } else if (strcmp(argv[i], "-e") == 0 || strcmp(argv[i], "--equation") == 0) {
+                if (i + 1 < argc) {
+                    equation_str = argv[++i];
+                }
+            } else if (strcmp(argv[i], "--vtk") == 0) {
+                export_vtk = true;
+            } else if (strcmp(argv[i], "--sensor-threshold") == 0) {
+                if (i + 1 < argc) {
+                    sensor_threshold = std::atof(argv[++i]);
                 }
             } else {
                 if (argv[i][0] == '-') {
@@ -429,6 +503,12 @@ int main(int argc, char* argv[]) {
             }
         }
 
+        EquationType chosen_equation = EquationType::LinearAdvection;
+        if (equation_str == "burgers" || equation_str == "burgers_equation") {
+            chosen_equation = EquationType::Burgers;
+        }
+        auto ic_func = (chosen_equation == EquationType::Burgers) ? burgers_initial_condition : initial_condition;
+
         double x_start = 0.0;
         double x_interface = 0.5;
         double x_end = 1.0;
@@ -437,14 +517,16 @@ int main(int argc, char* argv[]) {
         int p_order = 3;
 
         std::ostringstream meta_ss;
-        meta_ss << "x_domain=" << x_start << ":" << x_interface << ":" << x_end;
+        meta_ss << "x_domain=" << x_start << ":" << x_interface << ":" << x_end
+                << " equation=" << (chosen_equation == EquationType::Burgers ? "burgers" : "advection");
         std::string domain_meta = meta_ss.str();
 
         double advection_speed = 1.0;
         double cfl = 0.1;
         double dx_min = std::min((x_interface - x_start)/n_fv, (x_end - x_interface)/n_dg / (2*p_order+1));
-        double dt = cfl * dx_min / advection_speed;
-        double t_final = 0.6;
+        double max_wave_speed = (chosen_equation == EquationType::Burgers) ? 1.0 : advection_speed;
+        double dt = cfl * dx_min / max_wave_speed;
+        double t_final = (chosen_equation == EquationType::Burgers) ? 0.35 : 0.6;
         int total_steps = int(t_final / dt);
 
         if (mpi_rank == 0) {
@@ -453,10 +535,12 @@ int main(int argc, char* argv[]) {
                       << "  " << Color::Blue << "Domain:       " << Color::Reset << "[" << std::fixed << std::setprecision(2) << x_start << "] |---FV---| [" << x_interface << "] |---DG---| [" << x_end << "]\n"
                       << "  " << Color::Blue << "FV Cells:     " << Color::Reset << Color::Bold << n_fv << Color::Reset << "\n"
                       << "  " << Color::Blue << "DG Elements:  " << Color::Reset << Color::Bold << n_dg << Color::Reset << " (Order P=" << Color::Bold << p_order << Color::Reset << ")\n"
+                      << "  " << Color::Blue << "Physics:      " << Color::Reset << Color::Bold << (chosen_equation == EquationType::Burgers ? "Nonlinear Burgers' Equation (Rusanov Flux)" : "Linear Advection (a=1.0)") << Color::Reset << "\n"
                       << "  " << Color::Blue << "Time:         " << Color::Reset << Color::Bold << "0.0 -> " << t_final << Color::Reset << "\n"
                       << "  " << Color::Blue << "Time Step:    " << Color::Reset << Color::Bold << std::defaultfloat << std::setprecision(6) << dt << Color::Reset << " (" << total_steps << " steps)\n"
                       << "  " << Color::Blue << "Integrator:   " << Color::Reset << Color::Bold << (chosen_integrator == HybridDomain::TimeIntegrator::SSPRK3 ? "SSPRK3 (3rd-Order SSP Runge-Kutta)" : "Forward Euler (1st-Order)") << Color::Reset << "\n"
                       << "  " << Color::Blue << "Parallelism:  " << Color::Reset << "MPI Ranks: " << Color::Bold << mpi_size << Color::Reset << " | OpenMP Threads: " << Color::Bold << active_threads << Color::Reset << "\n"
+                      << "  " << Color::Blue << "Diagnostics:  " << Color::Reset << "Persson-Peraire Sensor (Threshold: " << sensor_threshold << ") | VTK Export: " << (export_vtk ? "Enabled" : "Disabled") << "\n"
                       << std::endl;
         }
 
@@ -476,6 +560,7 @@ int main(int argc, char* argv[]) {
 
         double initial_mass = 0.0, initial_energy = 0.0;
         double final_mass = 0.0, final_energy = 0.0;
+        int troubled_cells = 0;
 
 #ifdef HYFLOW_ENABLE_MPI
         if (mpi_size > 1) {
@@ -484,16 +569,19 @@ int main(int argc, char* argv[]) {
             if (mpi_rank == 0) {
                 auto fv = std::make_unique<FiniteVolumeSolver>();
                 fv->initialize(x_start, x_interface, n_fv);
-                fv->set_initial_condition(initial_condition);
+                fv->set_equation_type(chosen_equation);
+                fv->set_initial_condition(ic_func);
                 local_solver = std::move(fv);
             } else {
                 auto dg = std::make_unique<DiscontinuousGalerkinSolver>(p_order);
                 dg->initialize(x_interface, x_end, n_dg);
-                dg->set_initial_condition(initial_condition);
+                dg->set_equation_type(chosen_equation);
+                dg->set_initial_condition(ic_func);
                 local_solver = std::move(dg);
             }
 
             MpiHybridDomain mpi_hybrid(std::move(local_solver), MPI_COMM_WORLD);
+            mpi_hybrid.set_equation_type(chosen_equation);
             mpi_hybrid.set_time_integrator(chosen_integrator);
 
             initial_mass = mpi_hybrid.compute_total_mass();
@@ -529,23 +617,30 @@ int main(int argc, char* argv[]) {
             auto final_sol = mpi_hybrid.gather_solution();
             if (mpi_rank == 0) {
                 write_solution(output_dir + "/solution_final.csv", final_sol, t_final, domain_meta);
+                if (export_vtk) {
+                    write_vtk(output_dir + "/solution_final.vtu", final_sol);
+                }
             }
 
             final_mass = mpi_hybrid.compute_total_mass();
             final_energy = mpi_hybrid.compute_total_energy();
+            troubled_cells = mpi_hybrid.get_troubled_cell_count(sensor_threshold);
         } else
 #endif
         {
             // Single-process Hybrid Execution with OpenMP multithreading
             auto fv = std::make_unique<FiniteVolumeSolver>();
             fv->initialize(x_start, x_interface, n_fv);
-            fv->set_initial_condition(initial_condition);
+            fv->set_equation_type(chosen_equation);
+            fv->set_initial_condition(ic_func);
 
             auto dg = std::make_unique<DiscontinuousGalerkinSolver>(p_order);
             dg->initialize(x_interface, x_end, n_dg);
-            dg->set_initial_condition(initial_condition);
+            dg->set_equation_type(chosen_equation);
+            dg->set_initial_condition(ic_func);
 
             HybridDomain hybrid(std::move(fv), std::move(dg));
+            hybrid.set_equation_type(chosen_equation);
             hybrid.set_time_integrator(chosen_integrator);
 
             initial_mass = hybrid.compute_total_mass();
@@ -575,9 +670,14 @@ int main(int argc, char* argv[]) {
                 step++;
             }
 
-            write_solution(output_dir + "/solution_final.csv", hybrid.get_solution(), t_final, domain_meta);
+            auto final_sol = hybrid.get_solution();
+            write_solution(output_dir + "/solution_final.csv", final_sol, t_final, domain_meta);
+            if (export_vtk) {
+                write_vtk(output_dir + "/solution_final.vtu", final_sol);
+            }
             final_mass = hybrid.compute_total_mass();
             final_energy = hybrid.compute_total_energy();
+            troubled_cells = hybrid.get_troubled_cell_count(sensor_threshold);
         }
 
         if (is_tty && !verbose) {
@@ -610,7 +710,17 @@ int main(int argc, char* argv[]) {
                       << " (" << (mass_loss < 0.1 ? Color::Green : Color::Yellow) << "Rel Error: " << std::setprecision(4) << mass_loss << "%" << Color::Reset << ")\n"
                       << "  " << Color::Blue << "Kinetic Energy:   " << Color::Reset << std::setprecision(8) << initial_energy << " -> " << final_energy
                       << " (" << Color::Cyan << "Retention: " << std::setprecision(2) << energy_retention << "%" << Color::Reset << ")\n\n"
+                      << Color::Bold << "Modal Shock Sensor (Persson-Peraire):" << Color::Reset << "\n"
+                      << "  " << Color::Blue << "Troubled DG Cells:" << Color::Reset << " " << troubled_cells << " / " << n_dg
+                      << " (Threshold S_e > " << sensor_threshold << ")\n"
+                      << "  " << Color::Blue << "Wave Regularity:  " << Color::Reset
+                      << (troubled_cells > 0 ? Color::Yellow : Color::Green)
+                      << (troubled_cells > 0 ? "Steep Gradient / Shock Detected" : "Smooth Solution (Exponential Decay)")
+                      << Color::Reset << "\n\n"
                       << "Results saved in " << Color::Bold << output_dir << "/" << Color::Reset << std::endl;
+            if (export_vtk) {
+                std::cout << "VTK Grid written to " << Color::Bold << output_dir << "/solution_final.vtu" << Color::Reset << " (ParaView ready)" << std::endl;
+            }
 
             std::string script_path = "scripts/plot_results.py";
             if (!fs::exists(script_path) && fs::exists("../scripts/plot_results.py")) {

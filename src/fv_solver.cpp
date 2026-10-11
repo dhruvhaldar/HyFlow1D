@@ -1,4 +1,5 @@
 #include "fv_solver.hpp"
+#include "numerics.hpp"
 #include <stdexcept>
 #include <string>
 
@@ -46,24 +47,42 @@ void FiniteVolumeSolver::set_initial_condition(double (*func)(double)) {
 
 void FiniteVolumeSolver::compute_rhs(double /*t*/, double a) {
     if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
-    // 1st Order Upwind Scheme: u_i^{n+1} = u_i^n - a * dt/dx * (u_i - u_{i-1})
-    // RHS = -a * (u_i - u_{i-1}) / dx
-    
-    // Optimization: Precompute coefficient to avoid repeated divisions
-    const double coeff = -a / dx;
 
     double* RESTRICT rhs_ptr = rhs.data();
     const double* RESTRICT u_ptr = u.data();
+    const double inv_dx = 1.0 / dx;
 
-    // Peel first iteration to remove branch from main loop
-    if (n_elements > 0) {
-        rhs_ptr[0] = coeff * (u_ptr[0] - left_ghost);
-    }
+    if (equation_type == EquationType::LinearAdvection && a >= 0.0) {
+        // 1st Order Upwind Scheme: u_i^{n+1} = u_i^n - a * dt/dx * (u_i - u_{i-1})
+        // RHS = -a * (u_i - u_{i-1}) / dx
+        const double coeff = -a * inv_dx;
 
-    // Main loop: parallelized with OpenMP across elements
-    #pragma omp parallel for schedule(static)
-    for (int i = 1; i < n_elements; ++i) {
-        rhs_ptr[i] = coeff * (u_ptr[i] - u_ptr[i-1]);
+        // Peel first iteration to remove branch from main loop
+        if (n_elements > 0) {
+            rhs_ptr[0] = coeff * (u_ptr[0] - left_ghost);
+        }
+
+        // Main loop: parallelized with OpenMP across elements
+        #pragma omp parallel for schedule(static)
+        for (int i = 1; i < n_elements; ++i) {
+            rhs_ptr[i] = coeff * (u_ptr[i] - u_ptr[i-1]);
+        }
+    } else {
+        // Conservative Finite Volume formulation with Rusanov flux
+        // d(u_i)/dt = - (F_{i+1/2} - F_{i-1/2}) / dx
+        std::vector<double> num_flux(n_elements + 1);
+        num_flux[0] = numerics::rusanov_flux(left_ghost, u_ptr[0], equation_type, a);
+        num_flux[n_elements] = numerics::rusanov_flux(u_ptr[n_elements - 1], right_ghost, equation_type, a);
+
+        #pragma omp parallel for schedule(static)
+        for (int i = 1; i < n_elements; ++i) {
+            num_flux[i] = numerics::rusanov_flux(u_ptr[i-1], u_ptr[i], equation_type, a);
+        }
+
+        #pragma omp parallel for schedule(static)
+        for (int i = 0; i < n_elements; ++i) {
+            rhs_ptr[i] = -inv_dx * (num_flux[i+1] - num_flux[i]);
+        }
     }
 }
 
@@ -93,28 +112,24 @@ void FiniteVolumeSolver::blend_stage(double alpha, double beta, double dt) {
 void FiniteVolumeSolver::step(double dt, double advection_speed) {
     if (!is_initialized) throw std::runtime_error("Solver not initialized. Call initialize() first.");
 
-    if (advection_speed < 0) {
-        throw std::runtime_error("FiniteVolumeSolver: Negative advection speed not supported in upwind scheme.");
+    if (equation_type == EquationType::LinearAdvection && advection_speed >= 0.0) {
+        // Optimization: Fused Step
+        // Combines compute_rhs and update_state into a single pass to reduce memory bandwidth.
+        double* RESTRICT u_ptr = u.data();
+        const double coeff = advection_speed * dt / dx;
+        double prev_u = left_ghost;
+
+        for (int i = 0; i < n_elements; ++i) {
+            double current_u = u_ptr[i];
+            u_ptr[i] = current_u - coeff * (current_u - prev_u);
+            prev_u = current_u;
+        }
+        return;
     }
 
-    // Optimization: Fused Step
-    // Combines compute_rhs and update_state into a single pass to reduce memory bandwidth.
-    // Standard approach: Read u -> Write rhs; Read u, Read rhs -> Write u. (5 streams)
-    // Fused approach: Read u -> Write u. (2 streams)
-    // Scheme: u_i^{n+1} = u_i^n - (a * dt / dx) * (u_i^n - u_{i-1}^n)
-
-    double* RESTRICT u_ptr = u.data();
-    const double coeff = advection_speed * dt / dx;
-    double prev_u = left_ghost;
-
-    // Use a local variable to carry the dependency u_{i-1}^n across iterations.
-    // This allows in-place updates without a secondary buffer.
-    for (int i = 0; i < n_elements; ++i) {
-        double current_u = u_ptr[i];
-        // u_new = u_old - coeff * (u_old - u_prev)
-        u_ptr[i] = current_u - coeff * (current_u - prev_u);
-        prev_u = current_u;
-    }
+    // Generic Fallback
+    compute_rhs(0.0, advection_speed);
+    update_state(dt);
 }
 
 std::vector<std::pair<double, double>> FiniteVolumeSolver::get_solution() const {
